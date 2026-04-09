@@ -1,0 +1,6 @@
+requests
+supabase
+python-dotenv
+pandas
+streamlit
+plotly
