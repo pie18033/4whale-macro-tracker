@@ -1,32 +1,31 @@
-name: 巨鯨爬蟲自動排程 (每30分鐘)
+name: Whale Macro Tracker Auto Scraper
 
 on:
   schedule:
-    # 每 30 分鐘執行一次
+    # 這裡設定每 30 分鐘執行一次
     - cron: '*/30 * * * *'
-  workflow_dispatch: # 允許在 GitHub 網頁上手動點擊執行
+  workflow_dispatch: # 這個超好用！允許你在 GitHub 網頁上「手動按按鈕」立刻執行測試
 
 jobs:
-  scrape-and-save:
+  scrape:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: 📥 下載最新程式碼
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: 🐍 設定 Python 環境
-        uses: actions/setup-python@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: 📦 安裝所需套件
-        run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests supabase python-dotenv pandas
 
-      - name: 🚀 執行爬蟲抓取資料
+      - name: Run Scraper
         env:
-          # 告訴 GitHub 從 Secrets 讀取密碼
+          # 這裡會去讀取我們等一下要在 GitHub 設定的密碼本
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: python whale_macro_tracker.py
