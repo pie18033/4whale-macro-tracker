@@ -303,10 +303,10 @@ else:
 
             fig.update_layout(
                 height=max(350, len(active_layers) * 260), dragmode='pan', hovermode="x unified", 
-                # 💡 關鍵修改 1：把 t (Top 頂部邊距) 從原本的 10 加大到 50
-                margin=dict(l=40, r=40, t=50, b=40), 
-                # 💡 關鍵修改 2：把 y 值微調到 1.05，讓圖例穩穩站在天花板上
-                legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1), 
+                # 💡 關鍵修改 1：把 t(頂部) 還原成 10，把 b(底部) 加大到 100，為圖例騰出「地下室」空間
+                margin=dict(l=40, r=40, t=10, b=100), 
+                # 💡 關鍵修改 2：把 yanchor 改為 top，y 設為 -0.1 (跑到 X 軸下方)，並水平置中 (x=0.5)
+                legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), 
                 plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                 hoverlabel=dict(bgcolor="rgba(20, 20, 20, 0.85)", font_size=13, bordercolor="rgba(255, 255, 255, 0.2)")
             )
