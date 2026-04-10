@@ -302,8 +302,12 @@ else:
             )
 
             fig.update_layout(
-                height=max(350, len(active_layers) * 260), dragmode='pan', hovermode="x unified", margin=dict(l=40, r=40, t=10, b=40),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                height=max(350, len(active_layers) * 260), dragmode='pan', hovermode="x unified", 
+                # 💡 關鍵修改 1：把 t (Top 頂部邊距) 從原本的 10 加大到 50
+                margin=dict(l=40, r=40, t=50, b=40), 
+                # 💡 關鍵修改 2：把 y 值微調到 1.05，讓圖例穩穩站在天花板上
+                legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1), 
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                 hoverlabel=dict(bgcolor="rgba(20, 20, 20, 0.85)", font_size=13, bordercolor="rgba(255, 255, 255, 0.2)")
             )
 
