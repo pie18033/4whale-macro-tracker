@@ -4,3 +4,4 @@ python-dotenv
 pandas
 flask
 gunicorn
+streamlit-autorefresh
