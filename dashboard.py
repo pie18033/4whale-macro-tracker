@@ -14,19 +14,22 @@ load_dotenv(override=True)
 # ==========================================
 st.set_page_config(page_title="全市場巨鯨監控", layout="wide", page_icon="🐋")
 
-# 顏色狀態 (必須先定義，供後續 CSS 注入使用)
+# 顏色狀態
 if 'color_Binance' not in st.session_state: st.session_state.color_Binance = '#F3BA2F'
 if 'color_Bitget' not in st.session_state: st.session_state.color_Bitget = '#00A1E6'
 if 'color_Bybit' not in st.session_state: st.session_state.color_Bybit = '#00E676'
 if 'color_OKX' not in st.session_state: st.session_state.color_OKX = '#FF4500'
 
-# 隱藏右上角 Streamlit 預設的設定選單與 Header，保持純淨黑底，並注入毛玻璃 CSS
+# 💡 新增：資料載入量狀態 (預設 2000 筆)
+if 'data_limit' not in st.session_state: st.session_state.data_limit = 2000
+
+# 隱藏預設元件 & 注入🍎 iOS 26 毛玻璃按鈕樣式與選色連動
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}}
     header {{visibility: hidden;}}
     footer {{visibility: hidden;}}
-
+    
     /* 🍎 iOS 26 毛玻璃基礎按鈕 (未選中) */
     div[data-testid="stButton"] > button {{
         background: rgba(255, 255, 255, 0.03) !important;
@@ -54,7 +57,7 @@ st.markdown(f"""
         text-shadow: 0 0 5px rgba(255,255,255,0.3) !important;
     }}
 
-    /* 💡 修復 2: 精準指定按鈕發光顏色 (利用前後標籤定位) */
+    /* 精準指定按鈕發光顏色 */
     div.element-container:has(#btn-btc) + div.element-container div[data-testid="stButton"] > button[kind="primary"],
     div.element-container:has(#btn-layer-price) + div.element-container div[data-testid="stButton"] > button[kind="primary"] {{
         box-shadow: 0 0 15px #F3BA2F, inset 0 0 5px rgba(255,255,255,0.3) !important;
@@ -81,7 +84,7 @@ st.markdown(f"""
         border-color: #00E676 !important;
     }}
 
-    /* --- 交易所開關動態顏色連動 --- */
+    /* 交易所開關動態顏色連動 */
     div.element-container:has(#btn-exch-Binance) + div.element-container div[data-testid="stButton"] > button[kind="primary"] {{
         box-shadow: 0 0 15px {st.session_state.color_Binance}, inset 0 0 5px rgba(255,255,255,0.3) !important;
         border-color: {st.session_state.color_Binance} !important;
@@ -105,7 +108,6 @@ if 'symbol' not in st.session_state: st.session_state.symbol = 'BTCUSDT'
 
 def change_symbol(new_symbol): st.session_state.symbol = new_symbol
 
-# 💡 修復 2：交易所開關預設狀態 (Binance、Bitget 開，其餘關)
 default_exch = {'Binance': True, 'Bitget': True, 'Bybit': False, 'OKX': False}
 for exch, default_val in default_exch.items():
     state_key = f"show_{exch}"
@@ -114,7 +116,6 @@ for exch, default_val in default_exch.items():
 def toggle_exch(exch_name):
     st.session_state[f"show_{exch_name}"] = not st.session_state[f"show_{exch_name}"]
 
-# 圖層開關預設狀態
 default_layers = {'price': True, 'vol': False, 'pos': True, 'acc': True}
 for layer, default_val in default_layers.items():
     state_key = f"show_layer_{layer}"
@@ -122,6 +123,10 @@ for layer, default_val in default_layers.items():
 
 def toggle_layer(layer_name):
     st.session_state[f"show_layer_{layer_name}"] = not st.session_state[f"show_layer_{layer_name}"]
+
+# 💡 新增：載入更多資料的邏輯
+def load_more_data():
+    st.session_state.data_limit += 4000 # 每次增加 4000 筆
 
 # ==========================================
 # 🎨 頂部標題與按鈕選單
@@ -180,22 +185,24 @@ def init_connection():
 
 supabase = init_connection()
 
+# 💡 修改：將 data_limit 傳入快取函數，讓它根據狀態動態抓取
 @st.cache_data(ttl=10) 
-def load_data():
+def load_data(limit):
     if supabase is None: return pd.DataFrame()
     try:
-        # 💡 修復 3: 突破 Supabase 預設的 1000 筆限制，強制抓取最新的 2000 筆！
-        response = supabase.table("crypto_macro_data").select("*").order("time", desc=True).limit(2000).execute()
+        # 使用傳入的 limit 變數動態決定抓取數量
+        response = supabase.table("crypto_macro_data").select("*").order("time", desc=True).limit(limit).execute()
         df = pd.DataFrame(response.data)
         if not df.empty:
             df['time'] = pd.to_datetime(df['time']) + pd.Timedelta(hours=8)
-            df = df.sort_values('time') # 將倒序資料排回正確的順序供畫圖使用
+            df = df.sort_values('time') 
         return df
     except Exception as e:
         st.error(f"❌ 讀取 Supabase 資料失敗: {e}")
         return pd.DataFrame()
 
-df = load_data()
+# 使用 session_state 中的 limit 來載入資料
+df = load_data(st.session_state.data_limit)
 
 # ==========================================
 # 📊 畫圖與介面顯示 (動態圖表)
@@ -208,6 +215,23 @@ else:
     if df_filtered.empty:
         st.info(f"目前資料庫中尚未收集到 {symbol} 的數據。")
     else:
+        # 💡 新增：載入更多資料的控制區塊
+        st.markdown("##### ⏳ 資料載入範圍控制")
+        col_info, col_btn, _ = st.columns([3, 2, 7])
+        with col_info:
+            # 顯示目前抓了幾筆，大約涵蓋多久的時間
+            time_span_hours = (df_filtered['time'].max() - df_filtered['time'].min()).total_seconds() / 3600
+            st.caption(f"✅ 目前已載入最新 **{len(df)}** 筆資料 (約涵蓋過去 **{time_span_hours:.1f}** 小時的走勢)。")
+        
+        with col_btn:
+            # 防呆上限：超過 20000 筆就不給按了，保護網頁不卡死
+            if st.session_state.data_limit < 20000:
+                st.button("📥 載入更久以前的資料 (+4000筆)", on_click=load_more_data, use_container_width=True)
+            else:
+                st.caption("⚠️ 已達單次載入安全上限，以確保圖表流暢度。")
+
+        st.markdown("---")
+
         df_binance = df_filtered[df_filtered['exchange'] == 'Binance']
         if not df_binance.empty:
             latest_price = df_binance.iloc[-1]['price']
@@ -228,7 +252,6 @@ else:
             is_active = st.session_state[f"show_layer_{layer_key}"]
             if is_active: active_layers.append(layer_key)
             with col:
-                # 注入隱藏標籤供 CSS 識別顏色
                 st.markdown(f'<div id="btn-layer-{layer_key}"></div>', unsafe_allow_html=True)
                 st.button(
                     f"{layer_name}", 
@@ -245,12 +268,11 @@ else:
             fig = make_subplots(
                 rows=len(active_layers), cols=1, 
                 shared_xaxes=True, 
-                vertical_spacing=0.03 # 貼合距離，不會穿透
+                vertical_spacing=0.03 
             )
 
             exchanges = df_filtered['exchange'].unique()
 
-            # 動態加入 Trace
             for exch in exchanges:
                 df_ex = df_filtered[df_filtered['exchange'] == exch]
                 exch_color = color_map.get(exch, 'white')
@@ -302,7 +324,6 @@ else:
                             row=idx, col=1
                         )
 
-            # 動態設定 Y 軸標題
             for idx, layer in enumerate(active_layers, start=1):
                 if layer == 'price':
                     fig.update_yaxes(title_text="價格", tickformat="$.2s", autorange=True, row=idx, col=1)
@@ -365,7 +386,6 @@ else:
         for col, exch in zip(cols_list, exchanges_list):
             is_active = st.session_state[f"show_{exch}"]
             with col:
-                # 注入隱藏標籤供動態選色的 CSS 識別
                 st.markdown(f'<div id="btn-exch-{exch}"></div>', unsafe_allow_html=True)
                 st.button(
                     f"{exch}", 
