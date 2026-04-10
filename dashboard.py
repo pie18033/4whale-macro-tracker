@@ -14,40 +14,106 @@ load_dotenv(override=True)
 # ==========================================
 st.set_page_config(page_title="全市場巨鯨監控", layout="wide", page_icon="🐋")
 
-# 隱藏預設元件 & 注入高質感 Glassmorphism 按鈕樣式
-st.markdown("""
+# 顏色狀態 (需先定義，供 CSS 注入使用)
+if 'color_Binance' not in st.session_state: st.session_state.color_Binance = '#F3BA2F'
+if 'color_Bitget' not in st.session_state: st.session_state.color_Bitget = '#00A1E6'
+if 'color_Bybit' not in st.session_state: st.session_state.color_Bybit = '#00E676'
+if 'color_OKX' not in st.session_state: st.session_state.color_OKX = '#FF4500'
+
+# 隱藏預設元件 & 注入🍎 iOS 26 毛玻璃按鈕樣式與選色連動
+st.markdown(f"""
     <style>
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
+    #MainMenu {{visibility: hidden;}}
+    header {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
     
-    /* 🍎 iOS 26 Glassmorphism 基礎按鈕 (未選中) */
-    div[data-testid="stButton"] > button {
-        background: rgba(255, 255, 255, 0.05) !important;
-        backdrop-filter: blur(12px) !important;
-        -webkit-backdrop-filter: blur(12px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    /* 🍎 iOS 26 毛玻璃基礎按鈕 (未選中) */
+    div[data-testid="stButton"] > button {{
+        background: rgba(255, 255, 255, 0.03) !important;
+        backdrop-filter: blur(10px) !important;
+        -webkit-backdrop-filter: blur(10px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 12px !important;
         color: #a0a0a0 !important;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
         transition: all 0.3s ease !important;
-    }
+    }}
     
     /* 滑鼠懸停效果 */
-    div[data-testid="stButton"] > button:hover {
+    div[data-testid="stButton"] > button:hover {{
         background: rgba(255, 255, 255, 0.1) !important;
         border: 1px solid rgba(255, 255, 255, 0.3) !important;
         color: #ffffff !important;
-    }
+    }}
 
-    /* 🍎 iOS 26 Glassmorphism 啟動按鈕 (選中：中心微微發光) */
-    div[data-testid="stButton"] > button[kind="primary"] {
-        background: radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 100%) !important;
+    /* 💡 修復 2: iOS 26 毛玻璃選中按鈕 (中心微微發光) */
+    div[data-testid="stButton"] > button[kind="primary"] {{
+        background: radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.02) 100%) !important;
         border: 1px solid rgba(255, 255, 255, 0.4) !important;
         color: #ffffff !important;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3), inset 0 0 15px rgba(255,255,255,0.1) !important;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3), inset 0 0 10px rgba(255,255,255,0.05) !important;
         text-shadow: 0 0 5px rgba(255,255,255,0.3) !important;
-    }
+    }}
+
+    /* --- 按鈕分類固定選色 --- */
+    
+    /* 價格按鈕選定狀態為黃色冰亮光 */
+    .price-btn > button[kind="primary"] {{
+        box-shadow: 0 0 15px #F3BA2F, inset 0 0 5px rgba(255,255,255,0.3) !important;
+        border-color: #F3BA2F !important;
+        color: white !important;
+    }}
+    
+    /* ETH價格按鈕選定狀態為紫色 */
+    .eth-price-btn > button[kind="primary"] {{
+        box-shadow: 0 0 15px #A259FF, inset 0 0 5px rgba(255,255,255,0.3) !important;
+        border-color: #A259FF !important;
+        color: white !important;
+    }}
+
+    /* 資金圖層按鈕選定狀態為橘色 */
+    .vol-layer-btn > button[kind="primary"] {{
+        box-shadow: 0 0 15px #FF8C00, inset 0 0 5px rgba(255,255,255,0.3) !important;
+        border-color: #FF8C00 !important;
+        color: white !important;
+    }}
+
+    /* 資金比圖層按鈕選定狀態為藍色 */
+    .pos-layer-btn > button[kind="primary"] {{
+        box-shadow: 0 0 15px #00A1E6, inset 0 0 5px rgba(255,255,255,0.3) !important;
+        border-color: #00A1E6 !important;
+        color: white !important;
+    }}
+
+    /* 帳戶比圖層按鈕選定狀態為綠色 */
+    .acc-layer-btn > button[kind="primary"] {{
+        box-shadow: 0 0 15px #00E676, inset 0 0 5px rgba(255,255,255,0.3) !important;
+        border-color: #00E676 !important;
+        color: white !important;
+    }}
+
+    /* --- 交易所開關動態選色連動 (核心) --- */
+    
+    .binance-toggle > button[kind="primary"] {{
+        box-shadow: 0 0 15px {st.session_state.color_Binance}, inset 0 0 5px rgba(255,255,255,0.3) !important;
+        border-color: {st.session_state.color_Binance} !important;
+        color: white !important;
+    }}
+    .bitget-toggle > button[kind="primary"] {{
+        box-shadow: 0 0 15px {st.session_state.color_Bitget}, inset 0 0 5px rgba(255,255,255,0.3) !important;
+        border-color: {st.session_state.color_Bitget} !important;
+        color: white !important;
+    }}
+    .bybit-toggle > button[kind="primary"] {{
+        box-shadow: 0 0 15px {st.session_state.color_Bybit}, inset 0 0 5px rgba(255,255,255,0.3) !important;
+        border-color: {st.session_state.color_Bybit} !important;
+        color: white !important;
+    }}
+    .okx-toggle > button[kind="primary"] {{
+        box-shadow: 0 0 15px {st.session_state.color_OKX}, inset 0 0 5px rgba(255,255,255,0.3) !important;
+        border-color: {st.session_state.color_OKX} !important;
+        color: white !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -63,7 +129,7 @@ for exch in ['Binance', 'Bitget', 'Bybit', 'OKX']:
 def toggle_exch(exch_name):
     st.session_state[f"show_{exch_name}"] = not st.session_state[f"show_{exch_name}"]
 
-# 圖層開關預設狀態 
+# 圖層開關預設狀態 (將 vol 設為 False)
 default_layers = {'price': True, 'vol': False, 'pos': True, 'acc': True}
 for layer, default_val in default_layers.items():
     state_key = f"show_layer_{layer}"
@@ -71,12 +137,6 @@ for layer, default_val in default_layers.items():
 
 def toggle_layer(layer_name):
     st.session_state[f"show_layer_{layer_name}"] = not st.session_state[f"show_layer_{layer_name}"]
-
-# 顏色狀態
-if 'color_Binance' not in st.session_state: st.session_state.color_Binance = '#F3BA2F'
-if 'color_Bitget' not in st.session_state: st.session_state.color_Bitget = '#00A1E6'
-if 'color_Bybit' not in st.session_state: st.session_state.color_Bybit = '#00E676'
-if 'color_OKX' not in st.session_state: st.session_state.color_OKX = '#FF4500'
 
 # ==========================================
 # 🎨 頂部標題與按鈕選單
@@ -86,15 +146,24 @@ st.title("🐋 全市場巨鯨合約監控儀表板")
 st.markdown("##### 🔍 選擇監控標的")
 col_btn1, col_btn2, _ = st.columns([1.5, 1.5, 9]) 
 
+# 使用 Div 包覆以套用特定的價格按鈕樣式
 with col_btn1:
+    is_active = st.session_state.symbol == "BTCUSDT"
+    # BTCUSDT 是黃色價格鈕
+    st.markdown('<div class="price-btn">', unsafe_allow_html=True)
     st.button("🔥 BTCUSDT", use_container_width=True, 
-              type="primary" if st.session_state.symbol == "BTCUSDT" else "secondary",
+              type="primary" if is_active else "secondary",
               on_click=change_symbol, args=("BTCUSDT",))
+    st.markdown('</div>', unsafe_allow_html=True)
 
 with col_btn2:
+    is_active = st.session_state.symbol == "ETHUSDT"
+    # ETHUSDT 是紫色價格鈕
+    st.markdown('<div class="eth-price-btn">', unsafe_allow_html=True)
     st.button("💎 ETHUSDT", use_container_width=True, 
-              type="primary" if st.session_state.symbol == "ETHUSDT" else "secondary",
+              type="primary" if is_active else "secondary",
               on_click=change_symbol, args=("ETHUSDT",))
+    st.markdown('</div>', unsafe_allow_html=True)
 
 symbol = st.session_state.symbol
 
@@ -168,39 +237,43 @@ else:
         st.markdown("##### 👁️ 點擊按鈕顯示/隱藏圖層")
         l_col1, l_col2, l_col3, l_col4 = st.columns(4)
         
+        # 💡 修復 2: 使用 Div 包覆以套用特定的圖層按鈕樣式
         layer_configs = [
-            (l_col1, 'price', '價格 (Price)'),
-            (l_col2, 'vol', '多空絕對資金 (Volume)'),
-            (l_col3, 'pos', '資金多空比 (大戶)'),
-            (l_col4, 'acc', '帳戶多空比 (散戶)')
+            (l_col1, 'price', '價格', 'price-btn'), # 價格也是黃色，沿用樣式
+            (l_col2, 'vol', '資金', 'vol-layer-btn'),
+            (l_col3, 'pos', '資金比', 'pos-layer-btn'),
+            (l_col4, 'acc', '帳戶比', 'acc-layer-btn')
         ]
         
         active_layers = []
-        for col, layer_key, layer_name in layer_configs:
+        for col, layer_key, layer_name, css_class in layer_configs:
             is_active = st.session_state[f"show_layer_{layer_key}"]
             if is_active: active_layers.append(layer_key)
             with col:
+                st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
                 st.button(
-                    f"{layer_name}", # 💡 拿掉表情符號，讓毛玻璃質感更純粹
+                    f"{layer_name}", 
                     use_container_width=True, 
                     type="primary" if is_active else "secondary",
                     on_click=toggle_layer, args=(layer_key,)
                 )
+                st.markdown('</div>', unsafe_allow_html=True)
 
         if not active_layers:
             st.info("請至少開啟一個圖層來顯示圖表。")
         else:
             st.caption("【操作提示】圖表右上角有『Autoscale (自動縮放)』按鈕。框選可局部放大，雙擊圖表自動還原最佳化。")
 
-            # 💡 修復 1: 給予微小的 0.02 間距，讓圖層邊框「貼合而不穿透」
+            # 💡 修復 1: 給予微小的 0.03 間距，讓圖層邊框「貼合而不穿透」
             fig = make_subplots(
                 rows=len(active_layers), cols=1, 
                 shared_xaxes=True, 
-                vertical_spacing=0.02 
+                vertical_spacing=0.03 # 加大一點點間距，解決網格線重疊視覺問題
             )
 
             exchanges = df_filtered['exchange'].unique()
 
+            # 動態加入 Trace
             for exch in exchanges:
                 df_ex = df_filtered[df_filtered['exchange'] == exch]
                 exch_color = color_map.get(exch, 'white')
@@ -211,6 +284,7 @@ else:
                             go.Scatter(x=df_ex['time'], y=df_ex['price'], name=f"{exch} 價格",
                                        line=dict(color=exch_color, width=2), mode='lines',
                                        line_shape='spline',
+                                       # 💡 修復 1: 只顯示數值，Plotly 會自動把名稱和時間整合得很漂亮
                                        hovertemplate='$%{y:,.2f}<extra></extra>'),
                             row=idx, col=1
                         )
@@ -252,6 +326,7 @@ else:
                             row=idx, col=1
                         )
 
+            # 動態設定 Y 軸標題
             for idx, layer in enumerate(active_layers, start=1):
                 if layer == 'price':
                     fig.update_yaxes(title_text="價格", tickformat="$.2s", autorange=True, row=idx, col=1)
@@ -259,21 +334,24 @@ else:
                     fig.update_yaxes(title_text="資金 (B)", tickformat="$.2f", autorange=True, row=idx, col=1)
                 elif layer == 'pos':
                     fig.update_yaxes(title_text="資金比", autorange=True, row=idx, col=1)
+                    # fig.add_hline(...) # 💡 修復 3: 已移除紅虛線
                 elif layer == 'acc':
                     fig.update_yaxes(title_text="帳戶比", autorange=True, row=idx, col=1)
+                    # fig.add_hline(...) # 💡 修復 3: 已移除紅虛線
 
+            # 💡 修復 1: 亮邊框與網格
             fig.update_xaxes(
                 tickformat="%m-%d %H:%M",
-                hoverformat="%m-%d %H:%M:%S", 
-                showgrid=True, gridwidth=1, gridcolor='rgba(255, 255, 255, 0.05)',
-                showline=True, linewidth=1, linecolor='rgba(255, 255, 255, 0.3)', # 微調線寬，避免過度刺眼
+                hoverformat="%m-%d %H:%M:%S", # 💡 修復 2: 游標時間顯示純數字格式
+                showgrid=True, gridwidth=1, gridcolor='rgba(128, 128, 128, 0.1)',
+                showline=True, linewidth=2, linecolor='rgba(200, 200, 200, 0.6)', # 加粗、調亮邊框
                 mirror=True,
-                showspikes=True, spikecolor="rgba(255, 255, 255, 0.2)", spikethickness=1, spikedash="solid", spikemode="across" 
+                showspikes=True, spikecolor="rgba(255, 255, 255, 0.3)", spikethickness=1, spikedash="solid", spikemode="across" 
             )
             fig.update_yaxes(
-                showgrid=True, gridwidth=1, gridcolor='rgba(255, 255, 255, 0.05)',
-                showline=True, linewidth=1, linecolor='rgba(255, 255, 255, 0.3)',
-                mirror=True
+                showgrid=True, gridwidth=1, gridcolor='rgba(128, 128, 128, 0.1)',
+                showline=True, linewidth=2, linecolor='rgba(200, 200, 200, 0.6)', # 加粗、調亮邊框
+                mirror=True, autorange=True
             )
 
             chart_height = max(350, len(active_layers) * 260)
@@ -286,6 +364,7 @@ else:
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 plot_bgcolor="rgba(0,0,0,0)", 
                 paper_bgcolor="rgba(0,0,0,0)",
+                # 🍎 iOS 毛玻璃資訊框樣式
                 hoverlabel=dict(
                     bgcolor="rgba(20, 20, 20, 0.85)", 
                     font_size=13, 
@@ -314,13 +393,21 @@ else:
         for col, exch in zip(cols_list, exchanges_list):
             is_active = st.session_state[f"show_{exch}"]
             with col:
+                # 💡 修復 2: 使用 Div 包覆以套用特定的開關按鈕樣式 (連動Color Picker)
+                if exch == 'Binance': st.markdown('<div class="binance-toggle">', unsafe_allow_html=True)
+                elif exch == 'Bitget': st.markdown('<div class="bitget-toggle">', unsafe_allow_html=True)
+                elif exch == 'Bybit': st.markdown('<div class="bybit-toggle">', unsafe_allow_html=True)
+                elif exch == 'OKX': st.markdown('<div class="okx-toggle">', unsafe_allow_html=True)
+                
                 st.button(
-                    f"{exch}", # 💡 拿掉表情符號
+                    f"{exch}", 
                     use_container_width=True, 
                     type="primary" if is_active else "secondary",
                     on_click=toggle_exch, 
                     args=(exch,)
                 )
+                
+                st.markdown('</div>', unsafe_allow_html=True)
 
         selected_exchanges = [exch for exch in exchanges_list if st.session_state[f"show_{exch}"]]
         
