@@ -14,6 +14,15 @@ load_dotenv(override=True)
 # ==========================================
 st.set_page_config(page_title="全市場巨鯨監控", layout="wide", page_icon="🐋")
 
+# 💡 隱藏右上角 Streamlit 預設的設定選單與 Header，保持純淨黑底
+st.markdown("""
+    <style>
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+    """, unsafe_allow_html=True)
+
 if 'symbol' not in st.session_state:
     st.session_state.symbol = 'BTCUSDT'
 
@@ -34,7 +43,6 @@ def toggle_exch(exch_name):
 # ==========================================
 st.title("🐋 全市場巨鯨合約監控儀表板")
 
-st.markdown("##### 🔍 選擇監控標的")
 col_btn1, col_btn2, _ = st.columns([1.5, 1.5, 9]) 
 
 with col_btn1:
@@ -99,9 +107,9 @@ else:
         df_binance = df_filtered[df_filtered['exchange'] == 'Binance']
         if not df_binance.empty:
             latest_price = df_binance.iloc[-1]['price']
-            st.markdown(f"### 當前 {symbol} 價格 (Binance): **${latest_price:,.2f}**")
+            st.markdown(f"### 目前 {symbol} 價格 (幣安): **${latest_price:,.2f} USD**")
             
-        st.caption("【操作提示】在圖表內滾動可同步縮放四個圖層的時間軸，框選特定區域可局部放大，雙擊圖表自動還原最佳化。")
+        st.caption("【操作提示】在圖表內部滾動可同步縮放四個圖層的時間軸，框選特定區域可局部放大，雙擊圖表自動最佳化。")
 
         color_map = {
             'Binance': '#F3BA2F', 
@@ -110,12 +118,12 @@ else:
             'OKX': '#FF4500'      
         }
 
-        # 建立 4 列 1 行的子圖表，共用 X 軸
+        # 💡 修復 2: 移除 subplot_titles，讓畫面更乾淨
+        # 💡 修復 3: 微調 vertical_spacing 產生圖層區隔感
         fig = make_subplots(
             rows=4, cols=1, 
             shared_xaxes=True, 
-            vertical_spacing=0.03, # 圖層之間的間距
-            subplot_titles=("1. 價格 (Price)", "2. 多空絕對資金 (Volume USD)", "3. 資金多空比 (大戶)", "4. 帳戶多空比 (散戶)")
+            vertical_spacing=0.04
         )
 
         exchanges = df_filtered['exchange'].unique()
@@ -124,7 +132,7 @@ else:
             df_ex = df_filtered[df_filtered['exchange'] == exch]
             exch_color = color_map.get(exch, 'white')
 
-            # --- 第一層：價格 (所有交易所) ---
+            # --- 第一層：價格 ---
             if not df_ex['price'].isnull().all():
                 fig.add_trace(
                     go.Scatter(x=df_ex['time'], y=df_ex['price'], name=f"{exch} 價格",
@@ -133,7 +141,7 @@ else:
                     row=1, col=1
                 )
 
-            # --- 第二層：多空絕對資金 (僅 Binance, Bitget) ---
+            # --- 第二層：多空絕對資金 ---
             if not df_ex['long_vol_usd'].isnull().all():
                 fig.add_trace(
                     go.Scatter(x=df_ex['time'], y=df_ex['long_vol_usd'], name=f"{exch} 多單資金",
@@ -148,7 +156,7 @@ else:
                     row=2, col=1
                 )
 
-            # --- 第三層：資金多空比 (大戶) ---
+            # --- 第三層：資金多空比 ---
             if not df_ex['ls_pos_ratio'].isnull().all():
                 fig.add_trace(
                     go.Scatter(x=df_ex['time'], y=df_ex['ls_pos_ratio'], name=f"{exch} 資金比",
@@ -157,7 +165,7 @@ else:
                     row=3, col=1
                 )
 
-            # --- 第四層：帳戶多空比 (散戶) ---
+            # --- 第四層：帳戶多空比 ---
             if not df_ex['ls_acc_ratio'].isnull().all():
                 fig.add_trace(
                     go.Scatter(x=df_ex['time'], y=df_ex['ls_acc_ratio'], name=f"{exch} 帳戶比",
@@ -166,30 +174,42 @@ else:
                     row=4, col=1
                 )
 
-        # 加入 1.0 的基準紅虛線 (第三、第四層)
         fig.add_hline(y=1.0, row=3, col=1, line_dash="dash", line_color="red", opacity=0.5)
         fig.add_hline(y=1.0, row=4, col=1, line_dash="dash", line_color="red", opacity=0.5)
 
-        # 💡 完美修復：dragmode 已改為合法參數 'pan'
         fig.update_layout(
             height=1000, 
             dragmode='pan', 
             hovermode="x unified",
-            margin=dict(l=40, r=40, t=40, b=40),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            margin=dict(l=40, r=40, t=20, b=40), # 縮小上方邊距
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            plot_bgcolor="rgba(0,0,0,0)", # 讓圖表底色透明，融入背景
+            paper_bgcolor="rgba(0,0,0,0)"
         )
 
-        # 設定 Y 軸格式
-        fig.update_yaxes(title_text="USD", tickformat="$.2s", autorange=True, row=1, col=1)
-        fig.update_yaxes(title_text="資金量 (USD)", tickformat="$.2s", autorange=True, row=2, col=1)
-        fig.update_yaxes(title_text="比例", autorange=True, row=3, col=1)
-        fig.update_yaxes(title_text="比例", autorange=True, row=4, col=1)
-        fig.update_xaxes(fixedrange=False)
+        # 💡 修復 4: 為所有 X 軸加上垂直網格線 (時間延伸線)
+        fig.update_xaxes(
+            showgrid=True, gridwidth=1, gridcolor='rgba(128, 128, 128, 0.2)',
+            showline=True, linewidth=1, linecolor='rgba(128, 128, 128, 0.4)', # 💡 修復 3: 圖層區隔底線
+            mirror=True # 讓框線完整包覆單一圖層
+        )
+
+        # 💡 修復 2 & 3 & 4: 設定專屬的 Y 軸標題與水平網格線、外框線
+        fig.update_yaxes(title_text="價格", tickformat="$.2s", autorange=True, row=1, col=1)
+        fig.update_yaxes(title_text="資金", tickformat="$.2s", autorange=True, row=2, col=1)
+        fig.update_yaxes(title_text="資金比", autorange=True, row=3, col=1)
+        fig.update_yaxes(title_text="帳戶比", autorange=True, row=4, col=1)
+
+        fig.update_yaxes(
+            showgrid=True, gridwidth=1, gridcolor='rgba(128, 128, 128, 0.2)',
+            showline=True, linewidth=1, linecolor='rgba(128, 128, 128, 0.4)', # 💡 圖層外框線
+            mirror=True
+        )
 
         st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displayModeBar': False})
 
         # ==========================================
-        # 💡 下方表格區塊
+        # 下方表格區塊
         # ==========================================
         st.markdown("---")
         st.subheader("不同交易所數據紀錄")
