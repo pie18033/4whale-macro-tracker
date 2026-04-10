@@ -167,13 +167,18 @@ def collect_and_save():
 def home():
     return "Whale Tracker is Running!"
 
+# (節錄核心部分)
 @app.route('/scrape')
 def trigger_scrape():
     try:
-        result = collect_and_save()
-        return f"✅ 爬蟲執行成功: {result}", 200
+        # 💡 秒回大法：把苦力活交給背景小精靈
+        thread = threading.Thread(target=collect_and_save)
+        thread.start()
+        
+        # 💡 讓伺服器在 0.1 秒內就回覆 200 OK，讓 cron-job 覺得你很準時
+        return "✅ 任務已在背景啟動", 200
     except Exception as e:
-        return f"❌ 執行失敗: {e}", 500
+        return f"❌ 啟動失敗: {e}", 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
