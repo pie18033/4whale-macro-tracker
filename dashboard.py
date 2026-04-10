@@ -125,7 +125,6 @@ else:
             exch_color = color_map.get(exch, 'white')
 
             # --- 第一層：價格 (所有交易所) ---
-            # 即使 Bybit 只有價格，也會畫出來
             if not df_ex['price'].isnull().all():
                 fig.add_trace(
                     go.Scatter(x=df_ex['time'], y=df_ex['price'], name=f"{exch} 價格",
@@ -136,14 +135,12 @@ else:
 
             # --- 第二層：多空絕對資金 (僅 Binance, Bitget) ---
             if not df_ex['long_vol_usd'].isnull().all():
-                # 畫多單資金 (實線)
                 fig.add_trace(
                     go.Scatter(x=df_ex['time'], y=df_ex['long_vol_usd'], name=f"{exch} 多單資金",
                                line=dict(color=exch_color, width=2, dash='solid'), mode='lines',
                                hovertemplate='<b>多單資金:</b> $%{y:,.0f}<extra></extra>'),
                     row=2, col=1
                 )
-                # 畫空單資金 (虛線)
                 fig.add_trace(
                     go.Scatter(x=df_ex['time'], y=df_ex['short_vol_usd'], name=f"{exch} 空單資金",
                                line=dict(color=exch_color, width=2, dash='dot'), mode='lines',
@@ -173,11 +170,11 @@ else:
         fig.add_hline(y=1.0, row=3, col=1, line_dash="dash", line_color="red", opacity=0.5)
         fig.add_hline(y=1.0, row=4, col=1, line_dash="dash", line_color="red", opacity=0.5)
 
-        # 佈局與外觀設定
+        # 💡 完美修復：dragmode 已改為合法參數 'pan'
         fig.update_layout(
-            height=1000, # 加高畫布以容納 4 層
-            dragmode='x', # 滑鼠拖曳時只平移/縮放 X 軸 (時間)
-            hovermode="x unified", # 垂直游標，一次看穿 4 層數據
+            height=1000, 
+            dragmode='pan', 
+            hovermode="x unified",
             margin=dict(l=40, r=40, t=40, b=40),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
@@ -192,7 +189,7 @@ else:
         st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displayModeBar': False})
 
         # ==========================================
-        # 💡 下方表格區塊 (修復 Bybit 消失問題)
+        # 💡 下方表格區塊
         # ==========================================
         st.markdown("---")
         st.subheader("不同交易所數據紀錄")
@@ -215,7 +212,6 @@ else:
 
         selected_exchanges = [exch for exch in exchanges_list if st.session_state[f"show_{exch}"]]
         
-        # 💡 修復：移除 dropna，讓 Bybit 也能進入表格，空值會自然變成 N/A
         df_vol = df_filtered.copy()
         
         if not df_vol.empty and selected_exchanges:
@@ -224,7 +220,6 @@ else:
             df_vol = df_vol[['exchange', 'time', 'price', '多單資金 (B)', '空單資金 (B)', 'ls_acc_ratio', 'ls_pos_ratio']]
             df_vol = df_vol.rename(columns={'ls_acc_ratio': '帳戶比', 'ls_pos_ratio': '多空持倉比'})
             
-            # 將所有 NaN 轉為 N/A 顯示
             for col in ['多單資金 (B)', '空單資金 (B)', '帳戶比', '多空持倉比']:
                 df_vol[col] = df_vol[col].astype(str).replace('nan', 'N/A')
             
