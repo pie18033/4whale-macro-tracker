@@ -15,7 +15,7 @@ load_dotenv(override=True)
 st.set_page_config(page_title="全市場巨鯨監控", layout="wide", page_icon="🐋")
 # 💡 新增自動刷新機制 (設定為 15 分鐘 = 900,000 毫秒)
 # 這樣就算你把網頁掛在旁邊，它也會每 15 分鐘自動去資料庫看有沒有新貨
-st_autorefresh(interval=15 * 60 * 1000, key="data_autorefresh")
+st_autorefresh(interval=16 * 60 * 1000, key="data_autorefresh")
 # 顏色狀態
 if 'color_Binance' not in st.session_state: st.session_state.color_Binance = '#F3BA2F'
 if 'color_Bitget' not in st.session_state: st.session_state.color_Bitget = '#00A1E6'
