@@ -120,7 +120,7 @@ else:
 
         with col1:
             st.subheader("帳戶多空比")
-            st.caption("左軸：多空比 / 右軸：價格。【左鍵拖曳平移，滾輪縮放，雙擊還原】")
+            st.caption("左軸：多空比 / 右軸：價格。【下方拉桿縮放時間，Y軸將自動最佳化】")
             
             fig_acc = px.line(df_filtered, x='time', y='ls_acc_ratio', color='exchange', color_discrete_map=color_map)
             fig_acc.update_traces(line_shape='spline', hovertemplate=hover_template) 
@@ -134,15 +134,19 @@ else:
                     )
                 )
 
-            # 💡 修復：停用原生的 yaxis_title，改用 annotations 達成「真正的縱書」
+            # 💡 核心修復區間：解鎖 Y 軸、加入 rangeslider 達成完美縮放
             fig_acc.update_layout(
-                dragmode='pan',
-                xaxis=dict(title="", fixedrange=False),
-                yaxis=dict(title="", fixedrange=True),
-                yaxis2=dict(title="", overlaying="y", side="right", showgrid=False, fixedrange=True),
+                dragmode='x', # 滑鼠在圖表內拖曳時，預設只會平移 X 軸
+                xaxis=dict(
+                    title="", 
+                    fixedrange=False,
+                    rangeslider=dict(visible=True, thickness=0.08) # 💡 加入時間拉桿，這是 Plotly 原生觸發 Y 軸自動 Scale 的關鍵
+                ),
+                yaxis=dict(title="", fixedrange=False, autorange=True), # 💡 解除鎖定並允許自動適應高度
+                yaxis2=dict(title="", overlaying="y", side="right", showgrid=False, fixedrange=False, autorange=True), # 💡 解鎖右軸，確保價格刻度出現
                 hovermode="x unified",
-                margin=dict(l=80, r=80, t=30, b=0), # 加大左右邊界預留給縱書文字
-                legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+                margin=dict(l=80, r=80, t=30, b=40), # 加大底部邊界，給圖例跟拉桿空間
+                legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5), # 微調圖例位置
                 annotations=[
                     dict(
                         x=-0.12, y=0.5, xref='paper', yref='paper',
@@ -177,15 +181,19 @@ else:
                     )
                 )
 
-            # 💡 修復：停用原生的 yaxis_title，改用 annotations 達成「真正的縱書」
+            # 💡 核心修復區間：同樣套用完美縮放邏輯
             fig_pos.update_layout(
-                dragmode='pan',
-                xaxis=dict(title="", fixedrange=False),
-                yaxis=dict(title="", fixedrange=True),
-                yaxis2=dict(title="", overlaying="y", side="right", showgrid=False, fixedrange=True),
+                dragmode='x',
+                xaxis=dict(
+                    title="", 
+                    fixedrange=False,
+                    rangeslider=dict(visible=True, thickness=0.08)
+                ),
+                yaxis=dict(title="", fixedrange=False, autorange=True),
+                yaxis2=dict(title="", overlaying="y", side="right", showgrid=False, fixedrange=False, autorange=True),
                 hovermode="x unified",
-                margin=dict(l=80, r=80, t=30, b=0), 
-                legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+                margin=dict(l=80, r=80, t=30, b=40), 
+                legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5),
                 annotations=[
                     dict(
                         x=-0.12, y=0.5, xref='paper', yref='paper',
