@@ -14,95 +14,88 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     exit(1)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
-
-# ==========================================
-# 📡 交易所 API 抓取邏輯
-# ==========================================
+HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'}
 
 def get_binance(symbol):
     try:
-        url = f"https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol={symbol}&period=5m&limit=1"
-        r = requests.get(url, headers=HEADERS, timeout=10)
-        if r.status_code != 200: return None
-        acc_ratio = float(r.json()[0]['longShortRatio'])
-        price = float(requests.get(f"https://fapi.binance.com/fapi/v1/ticker/price?symbol={symbol}").json()['price'])
-        return {"exchange": "Binance", "price": price, "ls_acc": acc_ratio, "ls_pos": acc_ratio} 
-    except: return None
+        # 1. 價格 & 資金費率
+        t_r = requests.get(f"https://fapi.binance.com/fapi/v1/premiumIndex?symbol={symbol}", headers=HEADERS).json()
+        price = float(t_r['markPrice'])
+        funding_rate = float(t_r['lastFundingRate'])
 
-def get_okx(instId):
-    try:
-        url = f"https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio?instId={instId}"
-        r = requests.get(url, headers=HEADERS, timeout=10).json()
-        price = float(requests.get(f"https://www.okx.com/api/v5/market/ticker?instId={instId}-SWAP").json()['data'][0]['last'])
-        return {"exchange": "OKX", "price": price, "ls_acc": float(r['data'][0][1]), "ls_pos": float(r['data'][0][1])}
-    except: return None
+        # 2. 未平倉量 (OI)
+        oi_r = requests.get(f"https://fapi.binance.com/fapi/v1/openInterest?symbol={symbol}", headers=HEADERS).json()
+        open_interest = float(oi_r['openInterest']) * price # 換算成 USD
+
+        # 3. 散戶帳戶比
+        acc_r = requests.get(f"https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol={symbol}&period=5m&limit=1", headers=HEADERS).json()
+        ls_acc_ratio = float(acc_r[0]['longShortRatio'])
+        long_acc = ls_acc_ratio / (1 + ls_acc_ratio)
+        short_acc = 1 / (1 + ls_acc_ratio)
+
+        # 4. 大戶持倉比
+        pos_r = requests.get(f"https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol={symbol}&period=5m&limit=1", headers=HEADERS).json()
+        ls_pos_ratio = float(pos_r[0]['longShortRatio'])
+        long_pos = ls_pos_ratio / (1 + ls_pos_ratio)
+        short_pos = 1 / (1 + ls_pos_ratio)
+
+        return {
+            "exchange": "Binance", "price": price, "funding_rate": funding_rate, "open_interest": open_interest,
+            "long_acc_ratio": long_acc, "short_acc_ratio": short_acc, "ls_acc_ratio": ls_acc_ratio,
+            "long_pos_ratio": long_pos, "short_pos_ratio": short_pos, "ls_pos_ratio": ls_pos_ratio,
+            "long_vol_usd": open_interest * long_pos, "short_vol_usd": open_interest * short_pos
+        }
+    except Exception as e: 
+        print(f"Binance 錯誤: {e}")
+        return None
 
 def get_bitget(symbol):
     try:
         base = "https://api.bitget.com/api/v2/mix/market"
         params = f"symbol={symbol}&productType=USDT-FUTURES"
-        r_acc = requests.get(f"{base}/account-long-short?{params}", headers=HEADERS, timeout=10).json()
-        r_tick = requests.get(f"{base}/ticker?{params}", headers=HEADERS, timeout=10).json()
-        r_pos = requests.get(f"{base}/position-long-short?{params}", headers=HEADERS, timeout=10).json()
+        
+        # 抓取綜合數據
+        r_tick = requests.get(f"{base}/ticker?{params}", headers=HEADERS).json()['data'][0]
+        r_acc = requests.get(f"{base}/account-long-short?{params}", headers=HEADERS).json()['data'][0]
+        r_pos = requests.get(f"{base}/position-long-short?{params}", headers=HEADERS).json()['data'][0]
+        r_fund = requests.get(f"{base}/current-fund-rate?{params}", headers=HEADERS).json()['data'][0]
+        r_oi = requests.get(f"{base}/open-interest?{params}", headers=HEADERS).json()['data']['openInterestList'][0]
+
+        price = float(r_tick['lastPr'])
+        oi_usd = float(r_oi['size']) * price
+        
+        l_acc = float(r_acc['longAccountRatio'])
+        s_acc = float(r_acc['shortAccountRatio'])
+        l_pos = float(r_pos['longPositionRatio'])
+        s_pos = float(r_pos['shortPositionRatio'])
+
         return {
-            "exchange": "Bitget", 
-            "price": float(r_tick['data'][0]['lastPr']), 
-            "ls_acc": float(r_acc['data'][0]['longAccountRatio']) / float(r_acc['data'][0]['shortAccountRatio']), 
-            "ls_pos": float(r_pos['data'][0]['longPositionRatio']) / float(r_pos['data'][0]['shortPositionRatio'])
+            "exchange": "Bitget", "price": price, "funding_rate": float(r_fund['fundingRate']), "open_interest": oi_usd,
+            "long_acc_ratio": l_acc, "short_acc_ratio": s_acc, "ls_acc_ratio": l_acc / s_acc if s_acc else None,
+            "long_pos_ratio": l_pos, "short_pos_ratio": s_pos, "ls_pos_ratio": l_pos / s_pos if s_pos else None,
+            "long_vol_usd": oi_usd * l_pos, "short_vol_usd": oi_usd * s_pos
         }
-    except: return None
-
-def get_bybit(symbol):
-    try:
-        url = f"https://api.bybit.com/v5/market/tickers?category=linear&symbol={symbol}"
-        r = requests.get(url, headers=HEADERS, timeout=10).json()
-        return {"exchange": "Bybit", "price": float(r['result']['list'][0]['lastPrice']), "ls_acc": 1.0, "ls_pos": 1.0}
-    except: return None
-
-# ==========================================
-# 🚀 主程式執行
-# ==========================================
+    except Exception as e:
+        print(f"Bitget 錯誤: {e}")
+        return None
 
 def collect_and_save():
-    targets = [
-        {"symbol": "BTCUSDT", "okx": "BTC"},
-        {"symbol": "ETHUSDT", "okx": "ETH"}
-    ]
-    
+    targets = ["BTCUSDT", "ETHUSDT"]
     current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     print(f"⏰ 執行時間 (UTC): {current_time}")
 
-    for t in targets:
-        symbol = t["symbol"]
-        print(f"🔍 正在獲取 {symbol} 各交易所數據...")
+    for symbol in targets:
+        print(f"🔍 正在獲取 {symbol} 數據...")
+        results = [get_binance(symbol), get_bitget(symbol)]
         
-        # 把四家交易所的資料都抓一輪
-        results = [
-            get_binance(symbol),
-            get_okx(t['okx']),
-            get_bitget(symbol),
-            get_bybit(symbol)
-        ]
-        
-        # 只要有抓到，就各自寫入 crypto_macro_data，並標記交易所名稱
         for res in results:
             if res:
-                db_data = {
-                    "time": current_time,
-                    "symbol": symbol,
-                    "exchange": res["exchange"],
-                    "price": res["price"],
-                    "ls_ratio": res["ls_pos"],
-                    "long_acc_ratio": res["ls_acc"],
-                    "short_acc_ratio": 1.0,
-                    "long_vol_usd": 0,
-                    "short_vol_usd": 0
-                }
+                # 將字典加上 time 和 symbol，準備寫入
+                res["time"] = current_time
+                res["symbol"] = symbol
+                
                 try:
-                    # 這次絕對乖乖只寫入 crypto_macro_data！
-                    supabase.table("crypto_macro_data").insert(db_data).execute()
+                    supabase.table("crypto_macro_data").insert(res).execute()
                     print(f"✅ {symbol} ({res['exchange']}) 寫入成功")
                 except Exception as e:
                     print(f"❌ {symbol} ({res['exchange']}) 寫入失敗: {e}")
