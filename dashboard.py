@@ -35,10 +35,11 @@ for exch in ['Binance', 'Bitget', 'Bybit', 'OKX']:
 def toggle_exch(exch_name):
     st.session_state[f"show_{exch_name}"] = not st.session_state[f"show_{exch_name}"]
 
-# 💡 新增：圖層開關狀態
-for layer in ['price', 'vol', 'pos', 'acc']:
+# 💡 修復 2：圖層開關預設狀態 (將 vol 設為 False)
+default_layers = {'price': True, 'vol': False, 'pos': True, 'acc': True}
+for layer, default_val in default_layers.items():
     state_key = f"show_layer_{layer}"
-    if state_key not in st.session_state: st.session_state[state_key] = True
+    if state_key not in st.session_state: st.session_state[state_key] = default_val
 
 def toggle_layer(layer_name):
     st.session_state[f"show_layer_{layer_name}"] = not st.session_state[f"show_layer_{layer_name}"]
@@ -121,7 +122,7 @@ def load_data():
 df = load_data()
 
 # ==========================================
-# 📊 畫圖與介面顯示 (動態四層圖表)
+# 📊 畫圖與介面顯示 (動態圖表)
 # ==========================================
 if df.empty:
     st.warning("⚠️ 資料庫目前沒有資料，請確認「後端爬蟲程式」是否正在執行！")
@@ -136,7 +137,6 @@ else:
             latest_price = df_binance.iloc[-1]['price']
             st.markdown(f"### 目前 {symbol} 價格: **${latest_price:,.2f} USD**")
 
-        # 💡 新增：圖層開關按鈕 UI
         st.markdown("##### 👁️ 點擊按鈕顯示/隱藏圖層")
         l_col1, l_col2, l_col3, l_col4 = st.columns(4)
         
@@ -164,15 +164,14 @@ else:
         else:
             st.caption("【操作提示】圖表右上角有『Autoscale (自動縮放)』按鈕。框選可局部放大，雙擊圖表自動還原最佳化。")
 
-            # 💡 根據選擇的圖層數量動態建立子圖
+            # 💡 修復 3: 緊密貼合的圖層間距
             fig = make_subplots(
                 rows=len(active_layers), cols=1, 
                 shared_xaxes=True, 
-                vertical_spacing=0.08 if len(active_layers) > 1 else 0 # 💡 修復 1: 加大圖層間距
+                vertical_spacing=0.015 # 極小間距，讓邊框來發揮區隔作用
             )
 
             exchanges = df_filtered['exchange'].unique()
-            hover_time_format = "%m-%d %H:%M:%S"
 
             # 動態加入 Trace
             for exch in exchanges:
@@ -184,25 +183,25 @@ else:
                         fig.add_trace(
                             go.Scatter(x=df_ex['time'], y=df_ex['price'], name=f"{exch} 價格",
                                        line=dict(color=exch_color, width=2), mode='lines',
-                                       hovertemplate=f'<b>%{{x|{hover_time_format}}}</b><br>價格: $%{{y:,.2f}}<extra></extra>'),
+                                       # 💡 修復 1: 只顯示數值，Plotly 會自動把名稱和時間整合得很漂亮
+                                       hovertemplate='$%{y:,.2f}<extra></extra>'),
                             row=idx, col=1
                         )
                     
                     elif layer == 'vol' and not df_ex['long_vol_usd'].isnull().all():
-                        # 💡 修復 3: 將資金除以 10億 (1e9)，並改變 hover 顯示為 B
                         vol_long_b = df_ex['long_vol_usd'] / 1e9
                         vol_short_b = df_ex['short_vol_usd'] / 1e9
                         
                         fig.add_trace(
-                            go.Scatter(x=df_ex['time'], y=vol_long_b, name=f"{exch} 多單(B)",
+                            go.Scatter(x=df_ex['time'], y=vol_long_b, name=f"{exch} 多單",
                                        line=dict(color=exch_color, width=2, dash='solid'), mode='lines',
-                                       hovertemplate=f'<b>%{{x|{hover_time_format}}}</b><br>多單資金: $%{{y:,.2f}}B<extra></extra>'),
+                                       hovertemplate='$%{y:,.2f}B<extra></extra>'),
                             row=idx, col=1
                         )
                         fig.add_trace(
-                            go.Scatter(x=df_ex['time'], y=vol_short_b, name=f"{exch} 空單(B)",
+                            go.Scatter(x=df_ex['time'], y=vol_short_b, name=f"{exch} 空單",
                                        line=dict(color=exch_color, width=2, dash='dot'), mode='lines',
-                                       hovertemplate=f'<b>%{{x|{hover_time_format}}}</b><br>空單資金: $%{{y:,.2f}}B<extra></extra>'),
+                                       hovertemplate='$%{y:,.2f}B<extra></extra>'),
                             row=idx, col=1
                         )
 
@@ -210,7 +209,7 @@ else:
                         fig.add_trace(
                             go.Scatter(x=df_ex['time'], y=df_ex['ls_pos_ratio'], name=f"{exch} 資金比",
                                        line=dict(color=exch_color, width=2), mode='lines',
-                                       hovertemplate=f'<b>%{{x|{hover_time_format}}}</b><br>資金比: %{{y:.4f}}<extra></extra>'),
+                                       hovertemplate='%{y:.4f}<extra></extra>'),
                             row=idx, col=1
                         )
 
@@ -218,7 +217,7 @@ else:
                         fig.add_trace(
                             go.Scatter(x=df_ex['time'], y=df_ex['ls_acc_ratio'], name=f"{exch} 帳戶比",
                                        line=dict(color=exch_color, width=2), mode='lines',
-                                       hovertemplate=f'<b>%{{x|{hover_time_format}}}</b><br>帳戶比: %{{y:.4f}}<extra></extra>'),
+                                       hovertemplate='%{y:.4f}<extra></extra>'),
                             row=idx, col=1
                         )
 
@@ -235,21 +234,21 @@ else:
                     fig.update_yaxes(title_text="帳戶比", autorange=True, row=idx, col=1)
                     fig.add_hline(y=1.0, row=idx, col=1, line_dash="dash", line_color="red", opacity=0.5)
 
-            # 💡 修復 1: 加粗邊框線產生明顯的「視窗區隔感」
+            # 💡 修復 3: 強化邊框區隔。使用 mirror=True 讓每個圖層都被明顯的框線包覆
             fig.update_xaxes(
                 tickformat="%m-%d %H:%M",
                 showgrid=True, gridwidth=1, gridcolor='rgba(128, 128, 128, 0.1)',
-                showline=True, linewidth=2, linecolor='rgba(128, 128, 128, 0.4)',
-                mirror=True
+                showline=True, linewidth=1.5, linecolor='rgba(128, 128, 128, 0.4)',
+                mirror=True,
+                showspikes=True, spikecolor="rgba(255, 255, 255, 0.3)", spikethickness=1, spikedash="solid", spikemode="across" # 💡 修復 1: 質感的半透明垂直指示線
             )
             fig.update_yaxes(
                 showgrid=True, gridwidth=1, gridcolor='rgba(128, 128, 128, 0.1)',
-                showline=True, linewidth=2, linecolor='rgba(128, 128, 128, 0.4)',
+                showline=True, linewidth=1.5, linecolor='rgba(128, 128, 128, 0.4)',
                 mirror=True
             )
 
-            # 動態調整圖表總高度
-            chart_height = max(350, len(active_layers) * 280)
+            chart_height = max(350, len(active_layers) * 260)
 
             fig.update_layout(
                 height=chart_height, 
@@ -258,10 +257,15 @@ else:
                 margin=dict(l=40, r=40, t=10, b=40),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 plot_bgcolor="rgba(0,0,0,0)", 
-                paper_bgcolor="rgba(0,0,0,0)"
+                paper_bgcolor="rgba(0,0,0,0)",
+                # 💡 修復 1: 乾淨專業的 Hover 資訊框樣式
+                hoverlabel=dict(
+                    bgcolor="rgba(20, 20, 20, 0.85)", 
+                    font_size=13, 
+                    bordercolor="rgba(255, 255, 255, 0.2)"
+                )
             )
 
-            # 💡 修復 2: 開啟 displayModeBar，讓 Autoscale 等好用按鈕顯示出來
             st.plotly_chart(fig, use_container_width=True, config={
                 'scrollZoom': True, 
                 'displayModeBar': True, 
