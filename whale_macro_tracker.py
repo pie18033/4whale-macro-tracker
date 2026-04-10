@@ -4,6 +4,7 @@ from datetime import datetime
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from flask import Flask
+import threading
 
 # 初始化 Flask
 app = Flask(__name__)
