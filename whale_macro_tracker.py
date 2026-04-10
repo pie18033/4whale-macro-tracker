@@ -1,6 +1,5 @@
 import requests
 import os
-import time
 from datetime import datetime
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -23,8 +22,15 @@ HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 
 def get_binance(symbol):
     try:
-        t_r = requests.get(f"https://fapi.binance.com/fapi/v1/premiumIndex?symbol={symbol}", headers=HEADERS, timeout=10).json()
-        price = float(t_r['markPrice'])
+        url = f"https://fapi.binance.com/fapi/v1/premiumIndex?symbol={symbol}"
+        res = requests.get(url, headers=HEADERS, timeout=10)
+        
+        # 💡 精準攔截美國 IP 封鎖錯誤
+        if res.status_code == 451:
+            print(f"⚠️ Binance 抓取失敗: HTTP 451 (伺服器 IP 位於美國，遭幣安法規封鎖)")
+            return None
+            
+        price = float(res.json()['markPrice'])
 
         oi_r = requests.get(f"https://fapi.binance.com/fapi/v1/openInterest?symbol={symbol}", headers=HEADERS, timeout=10).json()
         open_interest = float(oi_r['openInterest']) * price 
@@ -79,21 +85,16 @@ def get_bitget(symbol):
 
 def get_okx(coin):
     try:
-        # 💡 修復 1：OKX 宏觀數據要求使用 ccy 參數 (如 BTC)
         url_acc = f"https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio?ccy={coin}&period=5m"
         r_acc = requests.get(url_acc, headers=HEADERS, timeout=10).json()
         
-        # 💡 修復 2：OKX 價格 API 要求使用完整的 instId (如 BTC-USDT-SWAP)
         url_price = f"https://www.okx.com/api/v5/market/ticker?instId={coin}-USDT-SWAP"
         r_price = requests.get(url_price, headers=HEADERS, timeout=10).json()
         
-        # 防呆機制：如果回傳沒資料，立刻跳出並印出原因，防止 IndexError
         if not r_acc.get('data') or not r_price.get('data'):
-            raise ValueError(f"API 回傳為空。多空比回傳: {r_acc.get('msg')} | 價格回傳: {r_price.get('msg')}")
+            raise ValueError(f"API 回傳為空。")
 
         price = float(r_price['data'][0]['last'])
-        
-        # OKX 僅提供帳戶多空比，反推百分比
         ls_acc_ratio = float(r_acc['data'][0][1])
         long_acc = ls_acc_ratio / (1 + ls_acc_ratio)
         short_acc = 1 / (1 + ls_acc_ratio)
@@ -110,14 +111,30 @@ def get_okx(coin):
 
 def get_bybit(symbol):
     try:
-        url = f"https://api.bybit.com/v5/market/tickers?category=linear&symbol={symbol}"
-        r = requests.get(url, headers=HEADERS, timeout=10).json()
-        price = float(r['result']['list'][0]['lastPrice'])
+        # 💡 解鎖 Bybit V5 價格與未平倉量
+        url_tick = f"https://api.bybit.com/v5/market/tickers?category=linear&symbol={symbol}"
+        r_tick = requests.get(url_tick, headers=HEADERS, timeout=10).json()['result']['list'][0]
+        price = float(r_tick['lastPrice'])
+        
+        oi_usd = None
+        if 'openInterest' in r_tick and r_tick['openInterest']:
+            oi_usd = float(r_tick['openInterest']) * price
+            
+        # 💡 解鎖 Bybit 散戶帳戶多空比
+        url_acc = f"https://api.bybit.com/v5/market/account-ratio?category=linear&symbol={symbol}&period=5min&limit=1"
+        r_acc = requests.get(url_acc, headers=HEADERS, timeout=10).json()
+        
+        b_ratio, s_ratio = None, None
+        if r_acc.get('result') and r_acc['result'].get('list'):
+            b_ratio = float(r_acc['result']['list'][0]['buyRatio'])
+            s_ratio = float(r_acc['result']['list'][0]['sellRatio'])
+            
         return {
-            "exchange": "Bybit", "price": price, 
-            "long_acc_ratio": None, "short_acc_ratio": None, "ls_acc_ratio": None,
+            "exchange": "Bybit", "price": price, "open_interest": oi_usd,
+            "long_acc_ratio": b_ratio, "short_acc_ratio": s_ratio, 
+            "ls_acc_ratio": b_ratio / s_ratio if s_ratio else None,
             "long_pos_ratio": None, "short_pos_ratio": None, "ls_pos_ratio": None,
-            "open_interest": None, "long_vol_usd": None, "short_vol_usd": None
+            "long_vol_usd": None, "short_vol_usd": None
         }
     except Exception as e: 
         print(f"⚠️ Bybit 抓取失敗: {e}")
@@ -126,42 +143,25 @@ def get_bybit(symbol):
 # ==========================================
 # 🚀 主程式執行
 # ==========================================
-
 def collect_and_save():
-    targets = [
-        {"symbol": "BTCUSDT", "okx": "BTC"},
-        {"symbol": "ETHUSDT", "okx": "ETH"}
-    ]
-    
+    targets = [{"symbol": "BTCUSDT", "okx": "BTC"}, {"symbol": "ETHUSDT", "okx": "ETH"}]
     current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     print(f"\n⏰ 開始執行爬蟲，時間 (UTC): {current_time}")
 
     for t in targets:
         symbol = t["symbol"]
         print(f"\n🔍 正在獲取 {symbol} 各交易所數據...")
-        
-        results = [
-            get_binance(symbol),
-            get_bitget(symbol),
-            get_okx(t['okx']),
-            get_bybit(symbol)
-        ]
+        results = [get_binance(symbol), get_bitget(symbol), get_okx(t['okx']), get_bybit(symbol)]
         
         for res in results:
             if res:
                 res["time"] = current_time
                 res["symbol"] = symbol
-                
                 try:
                     supabase.table("crypto_macro_data").insert(res).execute()
-                    print(f"✅ [{res['exchange']}] 寫入資料庫成功！ (價格: {res['price']})")
+                    print(f"✅ [{res['exchange']}] 寫入資料庫成功！")
                 except Exception as e:
                     print(f"❌ [{res['exchange']}] 寫入 Supabase 失敗: {e}")
 
-# ==========================================
-# 🚀 主程式執行
-# ==========================================
 if __name__ == "__main__":
-    print("🚀 啟動單次雲端爬蟲任務")
     collect_and_save()
-    print("✅ 任務結束！")
