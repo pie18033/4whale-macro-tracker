@@ -267,10 +267,15 @@ else:
 
                 for idx, layer in enumerate(active_layers, start=1):
                     if layer == 'price' and not df_ex['price'].isnull().all():
+                        # 💡 判斷邏輯：如果是 Binance 就顯示 (True)，其他的預設只顯示在圖例 ('legendonly')
+                        show_trace = True if exch == 'Binance' else 'legendonly'
+                        
                         fig.add_trace(
                             go.Scatter(x=df_ex['time'], y=df_ex['price'], name=f"{exch} 價格",
                                        line=dict(color=exch_color, width=2), mode='lines', line_shape='spline', 
-                                       hovertemplate='$%{y:,.2f}<extra></extra>'), row=idx, col=1)
+                                       hovertemplate='$%{y:,.2f}<extra></extra>',
+                                       visible=show_trace), # 💡 這裡套用隱藏設定
+                            row=idx, col=1)
                     
                     elif layer == 'vol' and not df_ex['long_vol_usd'].isnull().all():
                         vol_long_b = df_ex['long_vol_usd'] / 1e9
