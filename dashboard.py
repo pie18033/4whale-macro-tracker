@@ -4,6 +4,7 @@ from supabase import create_client, Client
 import os
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots # 💡 僅新增這個用來繪製穩定的雙 Y 軸
 from dotenv import load_dotenv
 
 # 強制每次載入網頁時，都去翻閱密碼本
@@ -118,44 +119,46 @@ else:
         hover_template = '<b>時間:</b> %{x|%Y-%m-%d %H:%M:%S}<br><b>數值:</b> %{y:.4f}<extra></extra>'
         hover_template_price = '<b>時間:</b> %{x|%Y-%m-%d %H:%M:%S}<br><b>價格:</b> $%{y:,.2f}<extra></extra>'
 
+        # ------------------------------------------
+        # 💡 圖表區間：重構為 make_subplots，保留你的縱書設計與乾淨外觀
+        # ------------------------------------------
         with col1:
             st.subheader("帳戶多空比")
-            st.caption("左軸：多空比 / 右軸：價格。【游標停在X軸刻度滾動可獨立縮放時間，雙擊圖表自動最佳化Y軸】")
+            st.caption("左軸：多空比 / 右軸：價格。【游標置於圖表內滾動可縮放時間，雙擊圖表可還原/自動最佳化】")
             
-            fig_acc = px.line(df_filtered, x='time', y='ls_acc_ratio', color='exchange', color_discrete_map=color_map)
-            fig_acc.update_traces(line_shape='spline', hovertemplate=hover_template) 
+            fig_acc = make_subplots(specs=[[{"secondary_y": True}]])
             
+            for exch in df_filtered['exchange'].unique():
+                df_ex = df_filtered[df_filtered['exchange'] == exch].dropna(subset=['ls_acc_ratio'])
+                if not df_ex.empty:
+                    fig_acc.add_trace(
+                        go.Scatter(x=df_ex['time'], y=df_ex['ls_acc_ratio'], name=exch,
+                                   line=dict(color=color_map.get(exch, 'gray'), width=2),
+                                   line_shape='spline', hovertemplate=hover_template),
+                        secondary_y=False
+                    )
+                    
             if not df_price.empty:
                 fig_acc.add_trace(
-                    go.Scatter(
-                        x=df_price['time'], y=df_price['price'], name=f"{symbol[:3]} 價格 (右軸)",
-                        line=dict(color=price_color, width=2.5, dash='solid'), 
-                        yaxis="y2", line_shape='spline', hovertemplate=hover_template_price
-                    )
+                    go.Scatter(x=df_price['time'], y=df_price['price'], name=f"{symbol[:3]} 價格",
+                               line=dict(color=price_color, width=2.5, dash='solid'), 
+                               line_shape='spline', hovertemplate=hover_template_price),
+                    secondary_y=True
                 )
 
-            # 💡 完美修復：恢復 dragmode='pan'，解鎖所有 fixedrange=False，讓價格軸回歸正常
             fig_acc.update_layout(
                 dragmode='pan',
-                xaxis=dict(title="", fixedrange=False),
-                yaxis=dict(title="", fixedrange=False, autorange=True),
-                yaxis2=dict(title="", overlaying="y", side="right", showgrid=False, fixedrange=False, autorange=True),
                 hovermode="x unified",
-                margin=dict(l=80, r=80, t=30, b=0), 
+                margin=dict(l=80, r=80, t=30, b=0),
                 legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
                 annotations=[
-                    dict(
-                        x=-0.12, y=0.5, xref='paper', yref='paper',
-                        text="<b>帳<br>戶<br>比</b>", showarrow=False,
-                        font=dict(size=18), align='center'
-                    ),
-                    dict(
-                        x=1.12, y=0.5, xref='paper', yref='paper',
-                        text="<b>價<br>格<br><span style='font-size: 13px;'>(USD)</span></b>", showarrow=False,
-                        font=dict(size=18), align='center'
-                    )
+                    dict(x=-0.12, y=0.5, xref='paper', yref='paper', text="<b>帳<br>戶<br>比</b>", showarrow=False, font=dict(size=18), align='center'),
+                    dict(x=1.12, y=0.5, xref='paper', yref='paper', text="<b>價<br>格<br><span style='font-size: 13px;'>(USD)</span></b>", showarrow=False, font=dict(size=18), align='center')
                 ]
             )
+            fig_acc.update_xaxes(title="", fixedrange=False)
+            fig_acc.update_yaxes(title="", fixedrange=False, autorange=True, secondary_y=False)
+            fig_acc.update_yaxes(title="", fixedrange=False, autorange=True, showgrid=False, secondary_y=True)
             fig_acc.add_hline(y=1.0, line_dash="dash", line_color="red", opacity=0.5)
             
             st.plotly_chart(fig_acc, use_container_width=True, config={'scrollZoom': True, 'displayModeBar': False})
@@ -165,44 +168,46 @@ else:
             st.caption("僅 Binance 與 Bitget 提供。數值 < 1 代表大戶總資金偏空。")
             df_whale = df_filtered.dropna(subset=['ls_pos_ratio'])
             
-            fig_pos = px.line(df_whale, x='time', y='ls_pos_ratio', color='exchange', color_discrete_map=color_map)
-            fig_pos.update_traces(line_shape='spline', hovertemplate=hover_template)
+            fig_pos = make_subplots(specs=[[{"secondary_y": True}]])
             
+            for exch in df_whale['exchange'].unique():
+                df_ex = df_whale[df_whale['exchange'] == exch]
+                if not df_ex.empty:
+                    fig_pos.add_trace(
+                        go.Scatter(x=df_ex['time'], y=df_ex['ls_pos_ratio'], name=exch,
+                                   line=dict(color=color_map.get(exch, 'gray'), width=2),
+                                   line_shape='spline', hovertemplate=hover_template),
+                        secondary_y=False
+                    )
+                    
             if not df_price.empty:
                 fig_pos.add_trace(
-                    go.Scatter(
-                        x=df_price['time'], y=df_price['price'], name=f"{symbol[:3]} 價格 (右軸)",
-                        line=dict(color=price_color, width=2.5, dash='solid'), 
-                        yaxis="y2", line_shape='spline', hovertemplate=hover_template_price
-                    )
+                    go.Scatter(x=df_price['time'], y=df_price['price'], name=f"{symbol[:3]} 價格",
+                               line=dict(color=price_color, width=2.5, dash='solid'), 
+                               line_shape='spline', hovertemplate=hover_template_price),
+                    secondary_y=True
                 )
 
-            # 💡 完美修復：恢復 dragmode='pan'，解鎖所有 fixedrange=False
             fig_pos.update_layout(
                 dragmode='pan',
-                xaxis=dict(title="", fixedrange=False),
-                yaxis=dict(title="", fixedrange=False, autorange=True),
-                yaxis2=dict(title="", overlaying="y", side="right", showgrid=False, fixedrange=False, autorange=True),
                 hovermode="x unified",
-                margin=dict(l=80, r=80, t=30, b=0), 
+                margin=dict(l=80, r=80, t=30, b=0),
                 legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
                 annotations=[
-                    dict(
-                        x=-0.12, y=0.5, xref='paper', yref='paper',
-                        text="<b>資<br>金<br>比</b>", showarrow=False,
-                        font=dict(size=18), align='center'
-                    ),
-                    dict(
-                        x=1.12, y=0.5, xref='paper', yref='paper',
-                        text="<b>價<br>格<br><span style='font-size: 13px;'>(USD)</span></b>", showarrow=False,
-                        font=dict(size=18), align='center'
-                    )
+                    dict(x=-0.12, y=0.5, xref='paper', yref='paper', text="<b>資<br>金<br>比</b>", showarrow=False, font=dict(size=18), align='center'),
+                    dict(x=1.12, y=0.5, xref='paper', yref='paper', text="<b>價<br>格<br><span style='font-size: 13px;'>(USD)</span></b>", showarrow=False, font=dict(size=18), align='center')
                 ]
             )
+            fig_pos.update_xaxes(title="", fixedrange=False)
+            fig_pos.update_yaxes(title="", fixedrange=False, autorange=True, secondary_y=False)
+            fig_pos.update_yaxes(title="", fixedrange=False, autorange=True, showgrid=False, secondary_y=True)
             fig_pos.add_hline(y=1.0, line_dash="dash", line_color="red", opacity=0.5)
             
             st.plotly_chart(fig_pos, use_container_width=True, config={'scrollZoom': True, 'displayModeBar': False})
 
+        # ------------------------------------------
+        # 💡 以下完全是你的原始程式碼，一字未改！
+        # ------------------------------------------
         st.markdown("---")
         st.subheader("不同交易所多空比紀錄")
         
