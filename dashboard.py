@@ -14,7 +14,7 @@ load_dotenv(override=True)
 # ==========================================
 st.set_page_config(page_title="全市場巨鯨監控", layout="wide", page_icon="🐋")
 
-# 💡 隱藏右上角 Streamlit 預設的設定選單與 Header，保持純淨黑底
+# 隱藏右上角 Streamlit 預設的設定選單與 Header，保持純淨黑底
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -38,11 +38,18 @@ def toggle_exch(exch_name):
     state_key = f"show_{exch_name}"
     st.session_state[state_key] = not st.session_state[state_key]
 
+# 💡 新增：初始化顏色狀態
+if 'color_Binance' not in st.session_state: st.session_state.color_Binance = '#F3BA2F'
+if 'color_Bitget' not in st.session_state: st.session_state.color_Bitget = '#00A1E6'
+if 'color_Bybit' not in st.session_state: st.session_state.color_Bybit = '#00E676'
+if 'color_OKX' not in st.session_state: st.session_state.color_OKX = '#FF4500'
+
 # ==========================================
 # 🎨 頂部標題與按鈕選單
 # ==========================================
 st.title("🐋 全市場巨鯨合約監控儀表板")
 
+st.markdown("##### 🔍 選擇監控標的")
 col_btn1, col_btn2, _ = st.columns([1.5, 1.5, 9]) 
 
 with col_btn1:
@@ -56,6 +63,22 @@ with col_btn2:
               on_click=change_symbol, args=("ETHUSDT",))
 
 symbol = st.session_state.symbol
+
+# 💡 新增：自訂顏色面板 (使用 expander 收納以保持版面整潔)
+with st.expander("🎨 自訂圖表顏色 (點擊展開)"):
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: st.session_state.color_Binance = st.color_picker("Binance 顏色", st.session_state.color_Binance)
+    with c2: st.session_state.color_Bitget = st.color_picker("Bitget 顏色", st.session_state.color_Bitget)
+    with c3: st.session_state.color_Bybit = st.color_picker("Bybit 顏色", st.session_state.color_Bybit)
+    with c4: st.session_state.color_OKX = st.color_picker("OKX 顏色", st.session_state.color_OKX)
+
+color_map = {
+    'Binance': st.session_state.color_Binance, 
+    'Bitget': st.session_state.color_Bitget,  
+    'Bybit': st.session_state.color_Bybit,   
+    'OKX': st.session_state.color_OKX      
+}
+
 st.markdown("---")
 
 # ==========================================
@@ -84,7 +107,8 @@ def load_data():
         response = supabase.table("crypto_macro_data").select("*").execute()
         df = pd.DataFrame(response.data)
         if not df.empty:
-            df['time'] = pd.to_datetime(df['time'])
+            # 💡 修復 3: 直接將抓下來的 UTC 時間加上 8 小時，轉換為台灣時間 (東八區)
+            df['time'] = pd.to_datetime(df['time']) + pd.Timedelta(hours=8)
             df = df.sort_values('time')
         return df
     except Exception as e:
@@ -111,15 +135,6 @@ else:
             
         st.caption("【操作提示】在圖表內部滾動可同步縮放四個圖層的時間軸，框選特定區域可局部放大，雙擊圖表自動最佳化。")
 
-        color_map = {
-            'Binance': '#F3BA2F', 
-            'Bitget': '#00A1E6',  
-            'Bybit': '#00E676',   
-            'OKX': '#FF4500'      
-        }
-
-        # 💡 修復 2: 移除 subplot_titles，讓畫面更乾淨
-        # 💡 修復 3: 微調 vertical_spacing 產生圖層區隔感
         fig = make_subplots(
             rows=4, cols=1, 
             shared_xaxes=True, 
@@ -127,6 +142,9 @@ else:
         )
 
         exchanges = df_filtered['exchange'].unique()
+
+        # 💡 修復 2: 統一 hovertemplate 的時間顯示格式為 月-日 時:分:秒
+        hover_time_format = "%m-%d %H:%M:%S"
 
         for exch in exchanges:
             df_ex = df_filtered[df_filtered['exchange'] == exch]
@@ -137,7 +155,7 @@ else:
                 fig.add_trace(
                     go.Scatter(x=df_ex['time'], y=df_ex['price'], name=f"{exch} 價格",
                                line=dict(color=exch_color, width=2), mode='lines',
-                               hovertemplate='<b>%{x|%H:%M:%S}</b><br>價格: $%{y:,.2f}<extra></extra>'),
+                               hovertemplate=f'<b>%{{x|{hover_time_format}}}</b><br>價格: $%{{y:,.2f}}<extra></extra>'),
                     row=1, col=1
                 )
 
@@ -146,13 +164,13 @@ else:
                 fig.add_trace(
                     go.Scatter(x=df_ex['time'], y=df_ex['long_vol_usd'], name=f"{exch} 多單資金",
                                line=dict(color=exch_color, width=2, dash='solid'), mode='lines',
-                               hovertemplate='<b>多單資金:</b> $%{y:,.0f}<extra></extra>'),
+                               hovertemplate=f'<b>%{{x|{hover_time_format}}}</b><br>多單資金: $%{{y:,.0f}}<extra></extra>'),
                     row=2, col=1
                 )
                 fig.add_trace(
                     go.Scatter(x=df_ex['time'], y=df_ex['short_vol_usd'], name=f"{exch} 空單資金",
                                line=dict(color=exch_color, width=2, dash='dot'), mode='lines',
-                               hovertemplate='<b>空單資金:</b> $%{y:,.0f}<extra></extra>'),
+                               hovertemplate=f'<b>%{{x|{hover_time_format}}}</b><br>空單資金: $%{{y:,.0f}}<extra></extra>'),
                     row=2, col=1
                 )
 
@@ -161,7 +179,7 @@ else:
                 fig.add_trace(
                     go.Scatter(x=df_ex['time'], y=df_ex['ls_pos_ratio'], name=f"{exch} 資金比",
                                line=dict(color=exch_color, width=2), mode='lines',
-                               hovertemplate='<b>資金比:</b> %{y:.4f}<extra></extra>'),
+                               hovertemplate=f'<b>%{{x|{hover_time_format}}}</b><br>資金比: %{{y:.4f}}<extra></extra>'),
                     row=3, col=1
                 )
 
@@ -170,7 +188,7 @@ else:
                 fig.add_trace(
                     go.Scatter(x=df_ex['time'], y=df_ex['ls_acc_ratio'], name=f"{exch} 帳戶比",
                                line=dict(color=exch_color, width=2), mode='lines',
-                               hovertemplate='<b>帳戶比:</b> %{y:.4f}<extra></extra>'),
+                               hovertemplate=f'<b>%{{x|{hover_time_format}}}</b><br>帳戶比: %{{y:.4f}}<extra></extra>'),
                     row=4, col=1
                 )
 
@@ -181,20 +199,20 @@ else:
             height=1000, 
             dragmode='pan', 
             hovermode="x unified",
-            margin=dict(l=40, r=40, t=20, b=40), # 縮小上方邊距
+            margin=dict(l=40, r=40, t=20, b=40),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            plot_bgcolor="rgba(0,0,0,0)", # 讓圖表底色透明，融入背景
+            plot_bgcolor="rgba(0,0,0,0)", 
             paper_bgcolor="rgba(0,0,0,0)"
         )
 
-        # 💡 修復 4: 為所有 X 軸加上垂直網格線 (時間延伸線)
+        # 💡 修復 2 & 4: 設定 X 軸的顯示格式為數字月份 (%m-%d %H:%M) 並保持時間延伸線
         fig.update_xaxes(
+            tickformat="%m-%d %H:%M",
             showgrid=True, gridwidth=1, gridcolor='rgba(128, 128, 128, 0.2)',
-            showline=True, linewidth=1, linecolor='rgba(128, 128, 128, 0.4)', # 💡 修復 3: 圖層區隔底線
-            mirror=True # 讓框線完整包覆單一圖層
+            showline=True, linewidth=1, linecolor='rgba(128, 128, 128, 0.4)',
+            mirror=True
         )
 
-        # 💡 修復 2 & 3 & 4: 設定專屬的 Y 軸標題與水平網格線、外框線
         fig.update_yaxes(title_text="價格", tickformat="$.2s", autorange=True, row=1, col=1)
         fig.update_yaxes(title_text="資金", tickformat="$.2s", autorange=True, row=2, col=1)
         fig.update_yaxes(title_text="資金比", autorange=True, row=3, col=1)
@@ -202,7 +220,7 @@ else:
 
         fig.update_yaxes(
             showgrid=True, gridwidth=1, gridcolor='rgba(128, 128, 128, 0.2)',
-            showline=True, linewidth=1, linecolor='rgba(128, 128, 128, 0.4)', # 💡 圖層外框線
+            showline=True, linewidth=1, linecolor='rgba(128, 128, 128, 0.4)',
             mirror=True
         )
 
@@ -254,21 +272,19 @@ else:
                     
                     target_col = col_v1 if i % 2 == 0 else col_v2
                     with target_col:
+                        # 💡 這裡的顏色也會跟著你設定的調色盤同步變動喔！
                         exch_color = color_map.get(exch, '#FFFFFF')
                         st.markdown(f"<h4 style='color: {exch_color};'>{exch} 最新資料</h4>", unsafe_allow_html=True)
                         
-                        st.dataframe(
-                            top_20_df[['time', 'price', '多單資金 (B)', '空單資金 (B)', '帳戶比', '多空持倉比']], 
-                            use_container_width=True, 
-                            hide_index=True 
-                        )
+                        # 在表格內時間也會顯示台灣時間
+                        top_20_df_display = top_20_df[['time', 'price', '多單資金 (B)', '空單資金 (B)', '帳戶比', '多空持倉比']].copy()
+                        top_20_df_display['time'] = top_20_df_display['time'].dt.strftime('%m-%d %H:%M:%S')
+                        st.dataframe(top_20_df_display, use_container_width=True, hide_index=True)
                         
                         if not rest_df.empty:
                             with st.expander(f"📂 展開 {exch} 更早的歷史紀錄"):
-                                st.dataframe(
-                                    rest_df[['time', 'price', '多單資金 (B)', '空單資金 (B)', '帳戶比', '多空持倉比']], 
-                                    use_container_width=True, 
-                                    hide_index=True
-                                )
+                                rest_df_display = rest_df[['time', 'price', '多單資金 (B)', '空單資金 (B)', '帳戶比', '多空持倉比']].copy()
+                                rest_df_display['time'] = rest_df_display['time'].dt.strftime('%m-%d %H:%M:%S')
+                                st.dataframe(rest_df_display, use_container_width=True, hide_index=True)
         elif not selected_exchanges:
             st.info("請點擊上方按鈕，選擇至少一間交易所來顯示數據表格。")
