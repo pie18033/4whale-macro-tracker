@@ -164,11 +164,11 @@ else:
         else:
             st.caption("【操作提示】圖表右上角有『Autoscale (自動縮放)』按鈕。框選可局部放大，雙擊圖表自動還原最佳化。")
 
-            # 💡 修復 3: 緊密貼合的圖層間距
+            # 💡 更改 1: 圖層間距設為 0，讓邊界完美重疊
             fig = make_subplots(
                 rows=len(active_layers), cols=1, 
                 shared_xaxes=True, 
-                vertical_spacing=0.015 # 極小間距，讓邊框來發揮區隔作用
+                vertical_spacing=0 
             )
 
             exchanges = df_filtered['exchange'].unique()
@@ -183,7 +183,7 @@ else:
                         fig.add_trace(
                             go.Scatter(x=df_ex['time'], y=df_ex['price'], name=f"{exch} 價格",
                                        line=dict(color=exch_color, width=2), mode='lines',
-                                       # 💡 修復 1: 只顯示數值，Plotly 會自動把名稱和時間整合得很漂亮
+                                       line_shape='spline', # 💡 更改 4: 平滑線條
                                        hovertemplate='$%{y:,.2f}<extra></extra>'),
                             row=idx, col=1
                         )
@@ -195,12 +195,14 @@ else:
                         fig.add_trace(
                             go.Scatter(x=df_ex['time'], y=vol_long_b, name=f"{exch} 多單",
                                        line=dict(color=exch_color, width=2, dash='solid'), mode='lines',
+                                       line_shape='spline', # 💡 更改 4: 平滑線條
                                        hovertemplate='$%{y:,.2f}B<extra></extra>'),
                             row=idx, col=1
                         )
                         fig.add_trace(
                             go.Scatter(x=df_ex['time'], y=vol_short_b, name=f"{exch} 空單",
                                        line=dict(color=exch_color, width=2, dash='dot'), mode='lines',
+                                       line_shape='spline', # 💡 更改 4: 平滑線條
                                        hovertemplate='$%{y:,.2f}B<extra></extra>'),
                             row=idx, col=1
                         )
@@ -209,6 +211,7 @@ else:
                         fig.add_trace(
                             go.Scatter(x=df_ex['time'], y=df_ex['ls_pos_ratio'], name=f"{exch} 資金比",
                                        line=dict(color=exch_color, width=2), mode='lines',
+                                       line_shape='spline', # 💡 更改 4: 平滑線條
                                        hovertemplate='%{y:.4f}<extra></extra>'),
                             row=idx, col=1
                         )
@@ -217,11 +220,12 @@ else:
                         fig.add_trace(
                             go.Scatter(x=df_ex['time'], y=df_ex['ls_acc_ratio'], name=f"{exch} 帳戶比",
                                        line=dict(color=exch_color, width=2), mode='lines',
+                                       line_shape='spline', # 💡 更改 4: 平滑線條
                                        hovertemplate='%{y:.4f}<extra></extra>'),
                             row=idx, col=1
                         )
 
-            # 動態設定 Y 軸標題與基準線
+            # 動態設定 Y 軸標題
             for idx, layer in enumerate(active_layers, start=1):
                 if layer == 'price':
                     fig.update_yaxes(title_text="價格", tickformat="$.2s", autorange=True, row=idx, col=1)
@@ -229,22 +233,22 @@ else:
                     fig.update_yaxes(title_text="資金 (B)", tickformat="$.2f", autorange=True, row=idx, col=1)
                 elif layer == 'pos':
                     fig.update_yaxes(title_text="資金比", autorange=True, row=idx, col=1)
-                    fig.add_hline(y=1.0, row=idx, col=1, line_dash="dash", line_color="red", opacity=0.5)
+                    # 💡 更改 3: 已移除紅虛線
                 elif layer == 'acc':
                     fig.update_yaxes(title_text="帳戶比", autorange=True, row=idx, col=1)
-                    fig.add_hline(y=1.0, row=idx, col=1, line_dash="dash", line_color="red", opacity=0.5)
+                    # 💡 更改 3: 已移除紅虛線
 
-            # 💡 修復 3: 強化邊框區隔。使用 mirror=True 讓每個圖層都被明顯的框線包覆
             fig.update_xaxes(
                 tickformat="%m-%d %H:%M",
+                hoverformat="%m-%d %H:%M:%S", # 💡 更改 2: 讓上方游標時間顯示純數字格式
                 showgrid=True, gridwidth=1, gridcolor='rgba(128, 128, 128, 0.1)',
-                showline=True, linewidth=1.5, linecolor='rgba(128, 128, 128, 0.4)',
+                showline=True, linewidth=1.5, linecolor='rgba(200, 200, 200, 0.6)', # 💡 更改 1: 較亮的邊界線
                 mirror=True,
-                showspikes=True, spikecolor="rgba(255, 255, 255, 0.3)", spikethickness=1, spikedash="solid", spikemode="across" # 💡 修復 1: 質感的半透明垂直指示線
+                showspikes=True, spikecolor="rgba(255, 255, 255, 0.3)", spikethickness=1, spikedash="solid", spikemode="across" 
             )
             fig.update_yaxes(
                 showgrid=True, gridwidth=1, gridcolor='rgba(128, 128, 128, 0.1)',
-                showline=True, linewidth=1.5, linecolor='rgba(128, 128, 128, 0.4)',
+                showline=True, linewidth=1.5, linecolor='rgba(200, 200, 200, 0.6)', # 💡 更改 1: 較亮的邊界線
                 mirror=True
             )
 
@@ -258,7 +262,6 @@ else:
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 plot_bgcolor="rgba(0,0,0,0)", 
                 paper_bgcolor="rgba(0,0,0,0)",
-                # 💡 修復 1: 乾淨專業的 Hover 資訊框樣式
                 hoverlabel=dict(
                     bgcolor="rgba(20, 20, 20, 0.85)", 
                     font_size=13, 
