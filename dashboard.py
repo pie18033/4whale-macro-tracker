@@ -10,16 +10,44 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 # ==========================================
-# ⚙️ 網頁基本設定 & 狀態管理
+# ⚙️ 網頁基本設定 & 狀態管理 & 🍎 iOS 毛玻璃 CSS
 # ==========================================
 st.set_page_config(page_title="全市場巨鯨監控", layout="wide", page_icon="🐋")
 
-# 隱藏右上角 Streamlit 預設的設定選單與 Header，保持純淨黑底
+# 隱藏預設元件 & 注入高質感 Glassmorphism 按鈕樣式
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
+    
+    /* 🍎 iOS 26 Glassmorphism 基礎按鈕 (未選中) */
+    div[data-testid="stButton"] > button {
+        background: rgba(255, 255, 255, 0.05) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 12px !important;
+        color: #a0a0a0 !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    /* 滑鼠懸停效果 */
+    div[data-testid="stButton"] > button:hover {
+        background: rgba(255, 255, 255, 0.1) !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
+        color: #ffffff !important;
+    }
+
+    /* 🍎 iOS 26 Glassmorphism 啟動按鈕 (選中：中心微微發光) */
+    div[data-testid="stButton"] > button[kind="primary"] {
+        background: radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 100%) !important;
+        border: 1px solid rgba(255, 255, 255, 0.4) !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3), inset 0 0 15px rgba(255,255,255,0.1) !important;
+        text-shadow: 0 0 5px rgba(255,255,255,0.3) !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -35,7 +63,7 @@ for exch in ['Binance', 'Bitget', 'Bybit', 'OKX']:
 def toggle_exch(exch_name):
     st.session_state[f"show_{exch_name}"] = not st.session_state[f"show_{exch_name}"]
 
-# 💡 修復 2：圖層開關預設狀態 (將 vol 設為 False)
+# 圖層開關預設狀態 
 default_layers = {'price': True, 'vol': False, 'pos': True, 'acc': True}
 for layer, default_val in default_layers.items():
     state_key = f"show_layer_{layer}"
@@ -153,7 +181,7 @@ else:
             if is_active: active_layers.append(layer_key)
             with col:
                 st.button(
-                    f"{'🟢' if is_active else '⚫'} {layer_name}", 
+                    f"{layer_name}", # 💡 拿掉表情符號，讓毛玻璃質感更純粹
                     use_container_width=True, 
                     type="primary" if is_active else "secondary",
                     on_click=toggle_layer, args=(layer_key,)
@@ -164,16 +192,15 @@ else:
         else:
             st.caption("【操作提示】圖表右上角有『Autoscale (自動縮放)』按鈕。框選可局部放大，雙擊圖表自動還原最佳化。")
 
-            # 💡 更改 1: 圖層間距設為 0，讓邊界完美重疊
+            # 💡 修復 1: 給予微小的 0.02 間距，讓圖層邊框「貼合而不穿透」
             fig = make_subplots(
                 rows=len(active_layers), cols=1, 
                 shared_xaxes=True, 
-                vertical_spacing=0 
+                vertical_spacing=0.02 
             )
 
             exchanges = df_filtered['exchange'].unique()
 
-            # 動態加入 Trace
             for exch in exchanges:
                 df_ex = df_filtered[df_filtered['exchange'] == exch]
                 exch_color = color_map.get(exch, 'white')
@@ -183,7 +210,7 @@ else:
                         fig.add_trace(
                             go.Scatter(x=df_ex['time'], y=df_ex['price'], name=f"{exch} 價格",
                                        line=dict(color=exch_color, width=2), mode='lines',
-                                       line_shape='spline', # 💡 更改 4: 平滑線條
+                                       line_shape='spline',
                                        hovertemplate='$%{y:,.2f}<extra></extra>'),
                             row=idx, col=1
                         )
@@ -195,14 +222,14 @@ else:
                         fig.add_trace(
                             go.Scatter(x=df_ex['time'], y=vol_long_b, name=f"{exch} 多單",
                                        line=dict(color=exch_color, width=2, dash='solid'), mode='lines',
-                                       line_shape='spline', # 💡 更改 4: 平滑線條
+                                       line_shape='spline',
                                        hovertemplate='$%{y:,.2f}B<extra></extra>'),
                             row=idx, col=1
                         )
                         fig.add_trace(
                             go.Scatter(x=df_ex['time'], y=vol_short_b, name=f"{exch} 空單",
                                        line=dict(color=exch_color, width=2, dash='dot'), mode='lines',
-                                       line_shape='spline', # 💡 更改 4: 平滑線條
+                                       line_shape='spline',
                                        hovertemplate='$%{y:,.2f}B<extra></extra>'),
                             row=idx, col=1
                         )
@@ -211,7 +238,7 @@ else:
                         fig.add_trace(
                             go.Scatter(x=df_ex['time'], y=df_ex['ls_pos_ratio'], name=f"{exch} 資金比",
                                        line=dict(color=exch_color, width=2), mode='lines',
-                                       line_shape='spline', # 💡 更改 4: 平滑線條
+                                       line_shape='spline',
                                        hovertemplate='%{y:.4f}<extra></extra>'),
                             row=idx, col=1
                         )
@@ -220,12 +247,11 @@ else:
                         fig.add_trace(
                             go.Scatter(x=df_ex['time'], y=df_ex['ls_acc_ratio'], name=f"{exch} 帳戶比",
                                        line=dict(color=exch_color, width=2), mode='lines',
-                                       line_shape='spline', # 💡 更改 4: 平滑線條
+                                       line_shape='spline',
                                        hovertemplate='%{y:.4f}<extra></extra>'),
                             row=idx, col=1
                         )
 
-            # 動態設定 Y 軸標題
             for idx, layer in enumerate(active_layers, start=1):
                 if layer == 'price':
                     fig.update_yaxes(title_text="價格", tickformat="$.2s", autorange=True, row=idx, col=1)
@@ -233,22 +259,20 @@ else:
                     fig.update_yaxes(title_text="資金 (B)", tickformat="$.2f", autorange=True, row=idx, col=1)
                 elif layer == 'pos':
                     fig.update_yaxes(title_text="資金比", autorange=True, row=idx, col=1)
-                    # 💡 更改 3: 已移除紅虛線
                 elif layer == 'acc':
                     fig.update_yaxes(title_text="帳戶比", autorange=True, row=idx, col=1)
-                    # 💡 更改 3: 已移除紅虛線
 
             fig.update_xaxes(
                 tickformat="%m-%d %H:%M",
-                hoverformat="%m-%d %H:%M:%S", # 💡 更改 2: 讓上方游標時間顯示純數字格式
-                showgrid=True, gridwidth=1, gridcolor='rgba(128, 128, 128, 0.1)',
-                showline=True, linewidth=1.5, linecolor='rgba(200, 200, 200, 0.6)', # 💡 更改 1: 較亮的邊界線
+                hoverformat="%m-%d %H:%M:%S", 
+                showgrid=True, gridwidth=1, gridcolor='rgba(255, 255, 255, 0.05)',
+                showline=True, linewidth=1, linecolor='rgba(255, 255, 255, 0.3)', # 微調線寬，避免過度刺眼
                 mirror=True,
-                showspikes=True, spikecolor="rgba(255, 255, 255, 0.3)", spikethickness=1, spikedash="solid", spikemode="across" 
+                showspikes=True, spikecolor="rgba(255, 255, 255, 0.2)", spikethickness=1, spikedash="solid", spikemode="across" 
             )
             fig.update_yaxes(
-                showgrid=True, gridwidth=1, gridcolor='rgba(128, 128, 128, 0.1)',
-                showline=True, linewidth=1.5, linecolor='rgba(200, 200, 200, 0.6)', # 💡 更改 1: 較亮的邊界線
+                showgrid=True, gridwidth=1, gridcolor='rgba(255, 255, 255, 0.05)',
+                showline=True, linewidth=1, linecolor='rgba(255, 255, 255, 0.3)',
                 mirror=True
             )
 
@@ -291,7 +315,7 @@ else:
             is_active = st.session_state[f"show_{exch}"]
             with col:
                 st.button(
-                    f"{'🟢' if is_active else '⚫'} {exch}", 
+                    f"{exch}", # 💡 拿掉表情符號
                     use_container_width=True, 
                     type="primary" if is_active else "secondary",
                     on_click=toggle_exch, 
