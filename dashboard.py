@@ -163,4 +163,197 @@ color_map = {
     'OKX': st.session_state.color_OKX      
 }
 
-st.markdown("---
+st.markdown("---")
+
+# ==========================================
+# 🔌 連線與讀取資料
+# ==========================================
+@st.cache_resource
+def init_connection():
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY")
+    if not url or not key: return None
+    try: return create_client(url, key)
+    except: return None
+
+supabase = init_connection()
+
+@st.cache_data(ttl=10) 
+def load_data(limit):
+    if supabase is None: return pd.DataFrame()
+    try:
+        response = supabase.table("crypto_macro_data").select("*").order("time", desc=True).limit(limit).execute()
+        df = pd.DataFrame(response.data)
+        if not df.empty:
+            df['time'] = pd.to_datetime(df['time']) + pd.Timedelta(hours=8)
+            df = df.sort_values('time') 
+        return df
+    except: return pd.DataFrame()
+
+df = load_data(st.session_state.data_limit)
+
+# ==========================================
+# 📊 畫圖與介面顯示 (動態圖表)
+# ==========================================
+if df.empty:
+    st.warning("⚠️ 資料庫目前沒有資料，請確認「後端爬蟲程式」是否正在執行！")
+else:
+    df_filtered = df[df['symbol'] == symbol]
+    
+    if df_filtered.empty:
+        st.info(f"目前資料庫中尚未收集到 {symbol} 的數據。")
+    else:
+        # 💡 變得更聰明的防呆提示
+        st.markdown("##### ⏳ 資料載入範圍控制")
+        col_info, col_btn, _ = st.columns([4, 2, 6])
+        with col_info:
+            time_span_hours = (df_filtered['time'].max() - df_filtered['time'].min()).total_seconds() / 3600
+            # 判斷資料庫是否已經被掏空
+            if len(df) < st.session_state.data_limit:
+                st.caption(f"✅ 目前已載入最新 **{len(df)}** 筆資料 (約涵蓋 {time_span_hours:.1f} 小時)。<br>💡 **提示：這已經是資料庫裡所有的歷史數據了！**", unsafe_allow_html=True)
+            else:
+                st.caption(f"✅ 目前已載入最新 **{len(df)}** 筆資料 (約涵蓋過去 **{time_span_hours:.1f}** 小時的走勢)。")
+        
+        with col_btn:
+            if st.session_state.data_limit < 20000:
+                st.button("📥 載入更久以前的資料 (+4000筆)", on_click=load_more_data, use_container_width=True)
+            else:
+                st.caption("⚠️ 已達單次載入安全上限，以確保圖表流暢度。")
+
+        st.markdown("---")
+
+        df_binance = df_filtered[df_filtered['exchange'] == 'Binance']
+        if not df_binance.empty:
+            latest_price = df_binance.iloc[-1]['price']
+            st.markdown(f"### 目前 {symbol} 價格: **${latest_price:,.2f} USD**")
+
+        st.markdown("##### 👁️ 點擊按鈕顯示/隱藏圖層")
+        l_col1, l_col2, l_col3, l_col4 = st.columns(4)
+        
+        layer_configs = [
+            (l_col1, 'price', '價格 (Price)'),
+            (l_col2, 'vol', '多空絕對資金 (Volume)'),
+            (l_col3, 'pos', '資金多空比 (大戶)'),
+            (l_col4, 'acc', '帳戶多空比 (散戶)')
+        ]
+        
+        active_layers = []
+        for col, layer_key, layer_name in layer_configs:
+            is_active = st.session_state[f"show_layer_{layer_key}"]
+            if is_active: active_layers.append(layer_key)
+            with col:
+                st.markdown(f'<div id="btn-layer-{layer_key}"></div>', unsafe_allow_html=True)
+                st.button(
+                    f"{layer_name}", 
+                    use_container_width=True, 
+                    type="primary" if is_active else "secondary",
+                    on_click=toggle_layer, args=(layer_key,)
+                )
+
+        if not active_layers:
+            st.info("請至少開啟一個圖層來顯示圖表。")
+        else:
+            st.caption("【操作提示】圖表右上角有『Autoscale (自動縮放)』按鈕。框選可局部放大，雙擊圖表自動還原最佳化。")
+
+            fig = make_subplots(rows=len(active_layers), cols=1, shared_xaxes=True, vertical_spacing=0.03)
+
+            exchanges = df_filtered['exchange'].unique()
+
+            for exch in exchanges:
+                df_ex = df_filtered[df_filtered['exchange'] == exch]
+                exch_color = color_map.get(exch, 'white')
+
+                for idx, layer in enumerate(active_layers, start=1):
+                    if layer == 'price' and not df_ex['price'].isnull().all():
+                        fig.add_trace(
+                            go.Scatter(x=df_ex['time'], y=df_ex['price'], name=f"{exch} 價格",
+                                       line=dict(color=exch_color, width=2), mode='lines', line_shape='spline', 
+                                       hovertemplate='$%{y:,.2f}<extra></extra>'), row=idx, col=1)
+                    
+                    elif layer == 'vol' and not df_ex['long_vol_usd'].isnull().all():
+                        vol_long_b = df_ex['long_vol_usd'] / 1e9
+                        vol_short_b = df_ex['short_vol_usd'] / 1e9
+                        fig.add_trace(go.Scatter(x=df_ex['time'], y=vol_long_b, name=f"{exch} 多單", line=dict(color=exch_color, width=2, dash='solid'), mode='lines', line_shape='spline', hovertemplate='$%{y:,.2f}B<extra></extra>'), row=idx, col=1)
+                        fig.add_trace(go.Scatter(x=df_ex['time'], y=vol_short_b, name=f"{exch} 空單", line=dict(color=exch_color, width=2, dash='dot'), mode='lines', line_shape='spline', hovertemplate='$%{y:,.2f}B<extra></extra>'), row=idx, col=1)
+
+                    elif layer == 'pos' and not df_ex['ls_pos_ratio'].isnull().all():
+                        fig.add_trace(go.Scatter(x=df_ex['time'], y=df_ex['ls_pos_ratio'], name=f"{exch} 資金比", line=dict(color=exch_color, width=2), mode='lines', line_shape='spline', hovertemplate='%{y:.4f}<extra></extra>'), row=idx, col=1)
+
+                    elif layer == 'acc' and not df_ex['ls_acc_ratio'].isnull().all():
+                        fig.add_trace(go.Scatter(x=df_ex['time'], y=df_ex['ls_acc_ratio'], name=f"{exch} 帳戶比", line=dict(color=exch_color, width=2), mode='lines', line_shape='spline', hovertemplate='%{y:.4f}<extra></extra>'), row=idx, col=1)
+
+            for idx, layer in enumerate(active_layers, start=1):
+                if layer == 'price': fig.update_yaxes(title_text="價格", tickformat="$.2s", autorange=True, row=idx, col=1)
+                elif layer == 'vol': fig.update_yaxes(title_text="資金 (B)", tickformat="$.2f", autorange=True, row=idx, col=1)
+                elif layer == 'pos': fig.update_yaxes(title_text="資金比", autorange=True, row=idx, col=1)
+                elif layer == 'acc': fig.update_yaxes(title_text="帳戶比", autorange=True, row=idx, col=1)
+
+            fig.update_xaxes(
+                tickformat="%m-%d %H:%M", hoverformat="%m-%d %H:%M:%S", 
+                showgrid=True, gridwidth=1, gridcolor='rgba(128, 128, 128, 0.1)',
+                showline=True, linewidth=1.5, linecolor='rgba(200, 200, 200, 0.6)', 
+                mirror=True, showspikes=True, spikecolor="rgba(255, 255, 255, 0.3)", spikethickness=1, spikedash="solid", spikemode="across" 
+            )
+            fig.update_yaxes(
+                showgrid=True, gridwidth=1, gridcolor='rgba(128, 128, 128, 0.1)',
+                showline=True, linewidth=1.5, linecolor='rgba(200, 200, 200, 0.6)', mirror=True
+            )
+
+            fig.update_layout(
+                height=max(350, len(active_layers) * 260), dragmode='pan', hovermode="x unified", margin=dict(l=40, r=40, t=10, b=40),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                hoverlabel=dict(bgcolor="rgba(20, 20, 20, 0.85)", font_size=13, bordercolor="rgba(255, 255, 255, 0.2)")
+            )
+
+            st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displayModeBar': True, 'displaylogo': False, 'modeBarButtonsToRemove': ['lasso2d', 'select2d']})
+
+        # ==========================================
+        # 下方表格區塊
+        # ==========================================
+        st.markdown("---")
+        st.subheader("不同交易所數據紀錄")
+        
+        st.markdown("##### 👁️ 點擊按鈕開關下方表格")
+        col_t1, col_t2, col_t3, col_t4 = st.columns(4)
+        exchanges_list = ['Binance', 'Bitget', 'Bybit', 'OKX']
+        cols_list = [col_t1, col_t2, col_t3, col_t4]
+        
+        for col, exch in zip(cols_list, exchanges_list):
+            is_active = st.session_state[f"show_{exch}"]
+            with col:
+                st.markdown(f'<div id="btn-exch-{exch}"></div>', unsafe_allow_html=True)
+                st.button(f"{exch}", use_container_width=True, type="primary" if is_active else "secondary", on_click=toggle_exch, args=(exch,))
+
+        selected_exchanges = [exch for exch in exchanges_list if st.session_state[f"show_{exch}"]]
+        
+        df_vol = df_filtered.copy()
+        
+        if not df_vol.empty and selected_exchanges:
+            df_vol['多單資金 (B)'] = (df_vol['long_vol_usd'] / 1_000_000_000).round(3)
+            df_vol['空單資金 (B)'] = (df_vol['short_vol_usd'] / 1_000_000_000).round(3)
+            df_vol = df_vol[['exchange', 'time', 'price', '多單資金 (B)', '空單資金 (B)', 'ls_acc_ratio', 'ls_pos_ratio']]
+            df_vol = df_vol.rename(columns={'ls_acc_ratio': '帳戶比', 'ls_pos_ratio': '多空持倉比'})
+            
+            for col in ['多單資金 (B)', '空單資金 (B)', '帳戶比', '多空持倉比']: df_vol[col] = df_vol[col].astype(str).replace('nan', 'N/A')
+            
+            col_v1, col_v2 = st.columns(2)
+            for i, exch in enumerate(selected_exchanges):
+                exch_df = df_vol[df_vol['exchange'] == exch]
+                if not exch_df.empty:
+                    exch_df_sorted = exch_df.sort_values(by='time', ascending=False)
+                    top_20_df = exch_df_sorted.head(20)
+                    rest_df = exch_df_sorted.iloc[20:]
+                    
+                    target_col = col_v1 if i % 2 == 0 else col_v2
+                    with target_col:
+                        exch_color = color_map.get(exch, '#FFFFFF')
+                        st.markdown(f"<h4 style='color: {exch_color};'>{exch} 最新資料</h4>", unsafe_allow_html=True)
+                        top_20_df_display = top_20_df[['time', 'price', '多單資金 (B)', '空單資金 (B)', '帳戶比', '多空持倉比']].copy()
+                        top_20_df_display['time'] = top_20_df_display['time'].dt.strftime('%m-%d %H:%M:%S')
+                        st.dataframe(top_20_df_display, use_container_width=True, hide_index=True)
+                        if not rest_df.empty:
+                            with st.expander(f"📂 展開 {exch} 更早的歷史紀錄"):
+                                rest_df_display = rest_df[['time', 'price', '多單資金 (B)', '空單資金 (B)', '帳戶比', '多空持倉比']].copy()
+                                rest_df_display['time'] = rest_df_display['time'].dt.strftime('%m-%d %H:%M:%S')
+                                st.dataframe(rest_df_display, use_container_width=True, hide_index=True)
+        elif not selected_exchanges: st.info("請點擊上方按鈕，選擇至少一間交易所來顯示數據表格。")
