@@ -6,3 +6,4 @@ flask
 gunicorn
 streamlit-autorefresh
 plotly
+streamlit-lightweight-charts
