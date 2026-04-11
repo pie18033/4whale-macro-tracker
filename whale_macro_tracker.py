@@ -6,6 +6,7 @@ from datetime import datetime
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from flask import Flask
+from datetime import datetime, timedelta
 
 # 初始化 Flask
 app = Flask(__name__)
@@ -115,17 +116,31 @@ def collect_and_save():
                 except Exception as e:
                     print(f"❌ 寫入失敗: {e}")
 
-# 背景無限迴圈 (每 30 分鐘執行一次)
+# 背景無限迴圈 (精準對齊整點與半點)
 def run_scraper_loop():
     time.sleep(10) # 讓伺服器先喘口氣開機
+    
     while True:
         try:
             collect_and_save()
         except Exception as e:
             print(f"⚠️ 迴圈執行異常: {e}")
         
-        print("⏳ 爬蟲結束，進入 30 分鐘休眠等待下一次...")
-        time.sleep(1800)  # 暫停 1800 秒 = 30 分鐘
+        # 💡 聰明鬧鐘邏輯：計算距離下一個 00分 或 30分 還剩幾秒
+        now = datetime.now()
+        
+        if now.minute < 30:
+            # 如果現在是 10:12，目標就是 10:30:02
+            next_run = now.replace(minute=30, second=2, microsecond=0)
+        else:
+            # 如果現在是 10:42，目標就是 11:00:02
+            next_run = (now + timedelta(hours=1)).replace(minute=0, second=2, microsecond=0)
+            
+        # 計算需要睡覺的秒數
+        sleep_seconds = (next_run - now).total_seconds()
+        
+        print(f"⏳ 爬蟲結束，預計睡眠 {sleep_seconds:.1f} 秒，將於 {next_run.strftime('%H:%M:%S')} 執行下一次抓取...")
+        time.sleep(sleep_seconds)
 
 # ==========================================
 # 🌐 Flask 伺服器與路由
