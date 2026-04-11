@@ -207,14 +207,24 @@ else:
     else:
         # 💡 變得更聰明的防呆提示
         st.markdown("##### ⏳ 資料載入範圍控制")
-        col_info, col_btn, _ = st.columns([4, 2, 6])
+        col_info, col_btn, _ = st.columns([5, 2, 5])  # 稍微把文字區塊拉寬一點以容納新資訊
         with col_info:
             time_span_hours = (df_filtered['time'].max() - df_filtered['time'].min()).total_seconds() / 3600
-            # 判斷資料庫是否已經被掏空
-            if len(df) < st.session_state.data_limit:
-                st.caption(f"✅ 目前已載入最新 **{len(df)}** 筆資料 (約涵蓋 {time_span_hours:.1f} 小時)。<br>💡 **提示：這已經是資料庫裡所有的歷史數據了！**", unsafe_allow_html=True)
-            else:
-                st.caption(f"✅ 目前已載入最新 **{len(df)}** 筆資料 (約涵蓋過去 **{time_span_hours:.1f}** 小時的走勢)。")
+            
+            # 💡 依照你的邏輯，明確計算並顯示各層級的資料量
+            total_count = len(df)                  # 總資料量 (不分幣種)
+            symbol_count = len(df_filtered)        # 目前選擇幣種的資料量 (約為總數 1/2)
+            single_exch_count = symbol_count // 4  # 單一交易所資料量 (約為該幣種 1/4)
+            
+            # 組裝顯示文字
+            info_text = f"✅ **資料庫總載入量：{total_count} 筆** (包含 BTC 與 ETH)<br>"
+            info_text += f"📊 選擇標的 ({symbol})：共 **{symbol_count}** 筆 ➔ 單一交易所約 **{single_exch_count}** 筆<br>"
+            info_text += f"⏱️ 涵蓋走勢時間：過去 **{time_span_hours:.1f}** 小時"
+            
+            if total_count < st.session_state.data_limit:
+                info_text += "<br>💡 *提示：這已經是資料庫裡所有的歷史數據了！*"
+                
+            st.caption(info_text, unsafe_allow_html=True)
         
         with col_btn:
             if st.session_state.data_limit < 20000:
