@@ -137,16 +137,24 @@ def home():
     return "✅ Whale Tracker is Awake and Running!", 200
 
 # 保留手動觸發功能，以防你隨時想補資料
+# ... (上面的 get_binance, collect_and_save 等邏輯完全不動) ...
+
+@app.route('/')
+def home():
+    return "✅ Whale Tracker is Awake and Running!", 200
+
 @app.route('/scrape')
 def manual_scrape():
     thread = threading.Thread(target=collect_and_save)
     thread.start()
     return "✅ 手動爬蟲已觸發", 200
 
+# 💡 關鍵修復：把啟動背景迴圈的指令移到最外層！
+# 這樣 Render (Gunicorn) 在載入這支檔案時，就會立刻執行這兩行，生出爬蟲小精靈
+scraper_thread = threading.Thread(target=run_scraper_loop, daemon=True)
+scraper_thread.start()
+
+# 底下這段留給本地端測試用，Render 會自動忽略它
 if __name__ == "__main__":
-    # 💡 伺服器啟動前，把無限迴圈掛載到背景執行 (daemon=True 代表伺服器關閉時它也會自動關閉)
-    scraper_thread = threading.Thread(target=run_scraper_loop, daemon=True)
-    scraper_thread.start()
-    
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
