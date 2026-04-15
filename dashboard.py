@@ -338,8 +338,21 @@ else:
                 'modeBarButtonsToAdd': ['drawline', 'drawopenpath', 'drawcircle', 'drawrect', 'eraseshape']
             
             }
-            # 🎨 1. 在圖表上方加入一個小巧的顏色選擇器 (預設為螢光黃)
-            pen_color = st.color_picker("🎨 選擇畫筆顏色", "#FFFF00")
+            # 🎨 1. 交易員專屬的快捷調色列
+            color_mapping = {
+                "🟡 警示黃": "#FFE600",
+                "🔴 壓力紅": "#FF4B4B",
+                "🟢 支撐綠": "#00 E800",
+                "⚪ 標記白": "#FFFFFF",
+                "🔵 趨勢藍": "#00BFFF"
+            }
+            
+            selected_color_name = st.radio(
+                "🎨 快速切換畫筆顏色：", 
+                options=list(color_mapping.keys()), 
+                horizontal=True  # 💡 關鍵設定：讓選項橫向排列，節省空間
+            )
+            pen_color = color_mapping[selected_color_name]
 
             # 🖌️ 2. 告訴 Plotly：「以後畫上去的新形狀，都要用這個顏色！」
             fig.update_layout(
@@ -350,9 +363,8 @@ else:
                     opacity=0.5            # 讓填充顏色保持半透明，才不會擋住 K 線
                 )
             )
-            # 💡 替代方案：核彈級橡皮擦 (一鍵清空)
-            if st.button("🧹 一鍵清空畫板 (移除所有標記)", use_container_width=True):
-                st.rerun()  # 強制重新整理網頁，洗掉所有客戶端的畫線
+            
+            # 畫出圖表
             st.plotly_chart(fig, use_container_width=True, config=config)
             
         # ==========================================
