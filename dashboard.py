@@ -354,20 +354,22 @@ else:
                     )
                 )
 
-            # 🖌️ 2. 告訴 Plotly：「把這排調色按鈕放在圖表左上角，並設定預設畫筆！」
+            # 🖌️ 2. 告訴 Plotly：「把這排調色按鈕放在圖表右上角！」
             fig.update_layout(
                 newshape=dict(line_width=2, opacity=0.5, line_color="#FFE600", fillcolor="#FFE600"),
                 updatemenus=[dict(
-                    type="buttons",        # 顯示為按鈕
-                    direction="right",     # 橫向排列
-                    x=0.0, y=1.12,         # 放在圖表的左上角 (y > 1 代表在圖表外面上方)
+                    type="buttons",
+                    direction="right",
+                    x=1.0,                  # 💡 關鍵修改 1：改為 1.0 (移到最右側)
+                    y=1.12,                 # 保持在圖表上方的高度
+                    xanchor="right",        # 💡 關鍵修改 2：向右對齊，確保按鈕不會超出螢幕邊緣
+                    yanchor="bottom",
                     showactive=True,
                     buttons=color_buttons,
-                    bgcolor="rgba(30,30,30,0.8)", # 給按鈕一點半透明底色比較好看
+                    bgcolor="rgba(30,30,30,0.8)",
                     font=dict(color="white")
                 )]
             )
-
             # 🧹 3. (保留) 真的畫太亂時，用這個一鍵核彈清空
             if st.button("🧹 一鍵清空畫板 (移除所有標記)", use_container_width=True):
                 st.rerun()
