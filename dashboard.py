@@ -338,6 +338,18 @@ else:
                 'modeBarButtonsToAdd': ['drawline', 'drawopenpath', 'drawcircle', 'drawrect', 'eraseshape']
             
             }
+            # 🎨 1. 在圖表上方加入一個小巧的顏色選擇器 (預設為螢光黃)
+            pen_color = st.color_picker("🎨 選擇畫筆顏色", "#FFFF00")
+
+            # 🖌️ 2. 告訴 Plotly：「以後畫上去的新形狀，都要用這個顏色！」
+            fig.update_layout(
+                newshape=dict(
+                    line_color=pen_color,  # 綁定你選的顏色
+                    line_width=2,          # 設定線條粗細，2 比較有感
+                    fillcolor=pen_color,   # 如果畫圓形或方形，內部填充的顏色
+                    opacity=0.5            # 讓填充顏色保持半透明，才不會擋住 K 線
+                )
+            )
             # 💡 替代方案：核彈級橡皮擦 (一鍵清空)
             if st.button("🧹 一鍵清空畫板 (移除所有標記)", use_container_width=True):
                 st.rerun()  # 強制重新整理網頁，洗掉所有客戶端的畫線
