@@ -326,8 +326,20 @@ else:
                 hoverlabel=dict(bgcolor="rgba(20, 20, 20, 0.85)", font_size=13, bordercolor="rgba(255, 255, 255, 0.2)")
             )
 
-            st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displayModeBar': True, 'displaylogo': False, 'modeBarButtonsToRemove': ['lasso2d', 'select2d']})
+            # 💡 把原本第 329 行的那整串舊 st.plotly_chart 刪掉！
 
+            # 解鎖 Plotly 的隱藏畫筆功能
+            config = {
+                'scrollZoom': True, 
+                'displayModeBar': True, 
+                'displaylogo': False, 
+                'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
+                # 💡 加上這行，解鎖畫線、畫圓、畫方形與橡皮擦功能
+                'modeBarButtonsToAdd': ['drawline', 'drawopenpath', 'drawcircle', 'drawrect', 'eraseshape']
+            }
+
+            st.plotly_chart(fig, use_container_width=True, config=config)
+            
         # ==========================================
         # 下方表格區塊
         # ==========================================
