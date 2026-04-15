@@ -337,7 +337,9 @@ else:
                 # 💡 加上這行，解鎖畫線、畫圓、畫方形與橡皮擦功能
                 'modeBarButtonsToAdd': ['drawline', 'drawopenpath', 'drawcircle', 'drawrect', 'eraseshape']
             }
-
+            # 💡 替代方案：核彈級橡皮擦 (一鍵清空)
+            if st.button("🧹 一鍵清空畫板 (移除所有標記)", use_container_width=True):
+                st.rerun()  # 強制重新整理網頁，洗掉所有客戶端的畫線
             st.plotly_chart(fig, use_container_width=True, config=config)
             
         # ==========================================
