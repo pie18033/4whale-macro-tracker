@@ -370,9 +370,7 @@ else:
                     font=dict(color="white")
                 )]
             )
-            # 🧹 3. (保留) 真的畫太亂時，用這個一鍵核彈清空
-            if st.button("🧹 一鍵清空畫板 (移除所有標記)", use_container_width=True):
-                st.rerun()
+            
 
             # 4. 畫出圖表
             st.plotly_chart(fig, use_container_width=True, config=config)
