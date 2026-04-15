@@ -340,7 +340,7 @@ else:
             }
             # 🎨 1. 定義顏色與 Plotly 原生按鈕
             color_buttons = []
-            colors = {"🟡 黃": "#FFE600", "🔴 紅": "#FF4B4B", "🟢 綠": "#00E800", "⚪ 白": "#FFFFFF", "🔵 藍": "#00BFFF"}
+            colors = {"🟡": "#FFE600", "🔴": "#FF4B4B", "🟢": "#00E800", "⚪": "#FFFFFF", "🔵": "#00BFFF"}
             
             for label, hex_color in colors.items():
                 color_buttons.append(
