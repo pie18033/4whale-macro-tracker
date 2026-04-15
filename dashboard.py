@@ -360,7 +360,7 @@ else:
                 updatemenus=[dict(
                     type="buttons",
                     direction="right",
-                    x=1.0,                  # 💡 關鍵修改 1：改為 1.0 (移到最右側)
+                    x=0.85,                  # 💡 關鍵修改 1：改為 1.0 (移到最右側)
                     y=1.12,                 # 保持在圖表上方的高度
                     xanchor="right",        # 💡 關鍵修改 2：向右對齊，確保按鈕不會超出螢幕邊緣
                     yanchor="bottom",
