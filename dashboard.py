@@ -338,34 +338,46 @@ else:
                 'modeBarButtonsToAdd': ['drawline', 'drawopenpath', 'drawcircle', 'drawrect', 'eraseshape']
             
             }
-            # 🎨 1. 交易員專屬的快捷調色列
-            color_mapping = {
-                "🟡 警示黃": "#FFE600",
-                "🔴 壓力紅": "#FF4B4B",
-                "🟢 支撐綠": "#00 E800",
-                "⚪ 標記白": "#FFFFFF",
-                "🔵 趨勢藍": "#00BFFF"
-            }
+            # 🎨 1. 定義顏色與 Plotly 原生按鈕
+            color_buttons = []
+            colors = {"🟡 黃": "#FFE600", "🔴 紅": "#FF4B4B", "🟢 綠": "#00E800", "⚪ 白": "#FFFFFF", "🔵 藍": "#00BFFF"}
             
-            selected_color_name = st.radio(
-                "🎨 快速切換畫筆顏色：", 
-                options=list(color_mapping.keys()), 
-                horizontal=True  # 💡 關鍵設定：讓選項橫向排列，節省空間
-            )
-            pen_color = color_mapping[selected_color_name]
-
-            # 🖌️ 2. 告訴 Plotly：「以後畫上去的新形狀，都要用這個顏色！」
-            fig.update_layout(
-                newshape=dict(
-                    line_color=pen_color,  # 綁定你選的顏色
-                    line_width=2,          # 設定線條粗細，2 比較有感
-                    fillcolor=pen_color,   # 如果畫圓形或方形，內部填充的顏色
-                    opacity=0.5            # 讓填充顏色保持半透明，才不會擋住 K 線
+            for label, hex_color in colors.items():
+                color_buttons.append(
+                    dict(
+                        method="relayout",
+                        label=label,
+                        args=[{
+                            "newshape.line.color": hex_color,
+                            "newshape.fillcolor": hex_color
+                        }]
+                    )
                 )
+
+            # 🖌️ 2. 告訴 Plotly：「把這排調色按鈕放在圖表左上角，並設定預設畫筆！」
+            fig.update_layout(
+                newshape=dict(line_width=2, opacity=0.5, line_color="#FFE600", fillcolor="#FFE600"),
+                updatemenus=[dict(
+                    type="buttons",        # 顯示為按鈕
+                    direction="right",     # 橫向排列
+                    x=0.0, y=1.12,         # 放在圖表的左上角 (y > 1 代表在圖表外面上方)
+                    showactive=True,
+                    buttons=color_buttons,
+                    bgcolor="rgba(30,30,30,0.8)", # 給按鈕一點半透明底色比較好看
+                    font=dict(color="white")
+                )]
             )
-            
-            # 畫出圖表
+
+            # 🧹 3. (保留) 真的畫太亂時，用這個一鍵核彈清空
+            if st.button("🧹 一鍵清空畫板 (移除所有標記)", use_container_width=True):
+                st.rerun()
+
+            # 4. 畫出圖表
             st.plotly_chart(fig, use_container_width=True, config=config)
+
+           
+            
+            
             
         # ==========================================
         # 下方表格區塊
